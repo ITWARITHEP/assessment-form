@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { employees, headquarters } from "@/data/employees";
-import { getEvaluationEvaluators } from "@/lib/permissions";
+import {
+  getEvaluationEvaluators,
+} from "@/lib/permissions";
 
 type AssessmentResult = {
   evaluatorId: string;
@@ -20,7 +22,7 @@ type AssessmentResult = {
   totalScore: number;
   maxScore: number;
 
-  suggestion?: string;
+  suggestion: string;
 
   submittedAt: string;
 };
@@ -37,44 +39,32 @@ export default function ResultsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [targetId, setTargetId] =
-    useState("");
+  const [targetId, setTargetId] = useState("");
+  const [targetName, setTargetName] = useState("");
+  const [targetRole, setTargetRole] = useState("");
 
-  const [targetName, setTargetName] =
-    useState("");
+  const [results, setResults] = useState<
+    EvaluatorResult[]
+  >([]);
 
-  const [targetRole, setTargetRole] =
-    useState("");
-
-  const [results, setResults] =
-    useState<EvaluatorResult[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  /*
-   * =========================================================
-   * LOAD
-   * =========================================================
-   */
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadPage() {
       try {
-        const resolvedParams =
-          await params;
+        const resolvedParams = await params;
 
-        const id =
-          resolvedParams.id;
+        const id = resolvedParams.id;
+
+        setTargetId(id);
 
         /*
          * =====================================================
-         * ADMIN ACCESS
-         *
-         * หน้า Results นี้ให้ Admin เข้าดูเท่านั้น
+         * ADMIN ONLY
          * =====================================================
+         *
+         * หน้านี้สำหรับ Admin เท่านั้น
          */
-
         const adminAccess =
           sessionStorage.getItem(
             "assessment_admin_access"
@@ -83,15 +73,12 @@ export default function ResultsPage({
         if (adminAccess !== "true") {
           window.location.href =
             "/dashboard";
-
           return;
         }
 
-        setTargetId(id);
-
         /*
          * =====================================================
-         * หา "ผู้ถูกประเมิน"
+         * หาข้อมูลผู้ถูกประเมิน
          * =====================================================
          */
 
@@ -109,9 +96,7 @@ export default function ResultsPage({
           setTargetRole(
             employeeTarget.roleName
           );
-        } else if (
-          id.startsWith("hq-")
-        ) {
+        } else if (id.startsWith("hq-")) {
           const index =
             Number(
               id.replace(
@@ -120,12 +105,12 @@ export default function ResultsPage({
               )
             ) - 1;
 
-          const hqName =
+          const headquartersTarget =
             headquarters[index];
 
-          if (hqName) {
+          if (headquartersTarget) {
             setTargetName(
-              hqName
+              headquartersTarget
             );
 
             setTargetRole(
@@ -136,15 +121,12 @@ export default function ResultsPage({
 
         /*
          * =====================================================
-         * หา "ผู้ประเมินทั้งหมด"
-         * ของบุคคลนี้
+         * ผู้มีสิทธิ์ประเมินบุคคลนี้
          * =====================================================
          */
 
         const evaluators =
-          getEvaluationEvaluators(
-            id
-          );
+          getEvaluationEvaluators(id);
 
         /*
          * =====================================================
@@ -160,18 +142,11 @@ export default function ResultsPage({
                 | null = null;
 
               /*
-               * Key ใหม่
-               *
-               * assessment_result_
-               * evaluatorId_targetId
+               * Key หลัก
                */
-
-              const key =
-                `assessment_result_${evaluator.id}_${id}`;
-
               const savedResult =
                 localStorage.getItem(
-                  key
+                  `assessment_result_${evaluator.id}_${id}`
                 );
 
               if (savedResult) {
@@ -183,12 +158,12 @@ export default function ResultsPage({
 
                   if (
                     parsed &&
-                    parsed.targetId === id &&
+                    parsed.targetId ===
+                      id &&
                     parsed.evaluatorId ===
                       evaluator.id
                   ) {
-                    result =
-                      parsed;
+                    result = parsed;
                   }
                 } catch {
                   result = null;
@@ -197,10 +172,9 @@ export default function ResultsPage({
 
               /*
                * =================================================
-               * รองรับกรณีข้อมูลถูกเก็บด้วย key อื่น
+               * รองรับข้อมูลเก่า
                * =================================================
                */
-
               if (!result) {
                 for (
                   let index = 0;
@@ -208,14 +182,14 @@ export default function ResultsPage({
                   localStorage.length;
                   index++
                 ) {
-                  const storageKey =
+                  const key =
                     localStorage.key(
                       index
                     );
 
                   if (
-                    !storageKey ||
-                    !storageKey.startsWith(
+                    !key ||
+                    !key.startsWith(
                       "assessment_result_"
                     )
                   ) {
@@ -223,19 +197,17 @@ export default function ResultsPage({
                   }
 
                   try {
-                    const saved =
+                    const raw =
                       localStorage.getItem(
-                        storageKey
+                        key
                       );
 
-                    if (!saved) {
+                    if (!raw) {
                       continue;
                     }
 
                     const parsed =
-                      JSON.parse(
-                        saved
-                      );
+                      JSON.parse(raw);
 
                     if (
                       parsed &&
@@ -244,9 +216,7 @@ export default function ResultsPage({
                       parsed.evaluatorId ===
                         evaluator.id
                     ) {
-                      result =
-                        parsed;
-
+                      result = parsed;
                       break;
                     }
                   } catch {
@@ -270,7 +240,7 @@ export default function ResultsPage({
         );
       } catch (error) {
         console.error(
-          "โหลดผลการประเมินไม่สำเร็จ:",
+          "ไม่สามารถโหลดผลการประเมิน:",
           error
         );
       } finally {
@@ -283,7 +253,7 @@ export default function ResultsPage({
 
   /*
    * =========================================================
-   * จำนวนผู้ประเมิน
+   * จำนวนคนที่ประเมินเสร็จ
    * =========================================================
    */
 
@@ -298,9 +268,11 @@ export default function ResultsPage({
   const totalEvaluators =
     results.length;
 
-  const pendingCount =
-    totalEvaluators -
-    completedCount;
+  /*
+   * =========================================================
+   * Progress
+   * =========================================================
+   */
 
   const progressPercent =
     totalEvaluators > 0
@@ -317,9 +289,9 @@ export default function ResultsPage({
    * =========================================================
    */
 
-  const averageScore =
+  const averagePercent =
     useMemo(() => {
-      const completed =
+      const completedResults =
         results
           .map(
             (item) =>
@@ -333,40 +305,49 @@ export default function ResultsPage({
           );
 
       if (
-        completed.length === 0
+        completedResults.length === 0
       ) {
-        return null;
+        return 0;
       }
 
-      const total =
-        completed.reduce(
-          (sum, result) =>
+      const totalScore =
+        completedResults.reduce(
+          (
+            sum,
+            result
+          ) =>
             sum +
             result.totalScore,
           0
         );
 
-      const max =
-        completed.reduce(
-          (sum, result) =>
+      const maxScore =
+        completedResults.reduce(
+          (
+            sum,
+            result
+          ) =>
             sum +
             result.maxScore,
           0
         );
 
-      if (!max) {
-        return null;
+      if (
+        maxScore === 0
+      ) {
+        return 0;
       }
 
       return Math.round(
-        (total / max) *
+        (totalScore /
+          maxScore) *
           100
       );
     }, [results]);
 
   /*
    * =========================================================
-   * EXPORT
+   * Export Excel
    * =========================================================
    */
 
@@ -375,7 +356,8 @@ export default function ResultsPage({
       return;
     }
 
-    const rows: string[][] = [];
+    const rows: string[][] =
+      [];
 
     rows.push([
       "ผลการประเมินพนักงาน",
@@ -396,7 +378,6 @@ export default function ResultsPage({
     rows.push([
       "ผู้ประเมิน",
       "ตำแหน่ง",
-      "สถานะ",
       "คะแนน",
       "คะแนนเต็ม",
       "เปอร์เซ็นต์",
@@ -411,7 +392,6 @@ export default function ResultsPage({
             item.name,
             item.roleName,
             "ยังไม่ได้ประเมิน",
-            "",
             "",
             "",
             "",
@@ -436,7 +416,6 @@ export default function ResultsPage({
         rows.push([
           result.evaluatorName,
           result.evaluatorRole,
-          "ประเมินแล้ว",
           String(
             result.totalScore
           ),
@@ -459,26 +438,33 @@ export default function ResultsPage({
 
     const csv =
       rows
-        .map((row) =>
-          row
-            .map((value) => {
-              const text =
-                String(
-                  value ?? ""
-                );
+        .map(
+          (row) =>
+            row
+              .map(
+                (value) => {
+                  const text =
+                    String(
+                      value ??
+                        ""
+                    );
 
-              return `"${text.replace(
-                /"/g,
-                '""'
-              )}"`;
-            })
-            .join(",")
+                  return `"${text.replace(
+                    /"/g,
+                    '""'
+                  )}"`;
+                }
+              )
+              .join(",")
         )
         .join("\n");
 
     const blob =
       new Blob(
-        ["\ufeff" + csv],
+        [
+          "\ufeff" +
+            csv,
+        ],
         {
           type: "text/csv;charset=utf-8;",
         }
@@ -516,19 +502,17 @@ export default function ResultsPage({
 
   /*
    * =========================================================
-   * LOADING
+   * Loading
    * =========================================================
    */
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="rounded-2xl bg-white px-8 py-6 text-center shadow-sm">
-          <div className="text-3xl">
-            ⏳
-          </div>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="w-full max-w-md rounded-3xl bg-white px-6 py-8 text-center shadow-xl">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
-          <p className="mt-3 font-semibold text-slate-700">
+          <p className="mt-4 font-semibold text-slate-700">
             กำลังโหลดผลการประเมิน...
           </p>
         </div>
@@ -538,114 +522,108 @@ export default function ResultsPage({
 
   /*
    * =========================================================
-   * PAGE
+   * Main
    * =========================================================
    */
 
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="min-h-screen bg-slate-100 pb-10 sm:pb-16">
       {/* =====================================================
           HEADER
       ===================================================== */}
 
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-              Assessment System
-            </p>
-
-            <h1 className="text-xl font-bold text-slate-900">
-              ผลการประเมินรายบุคคล
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-5">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-slate-900 sm:text-2xl">
+              Assessment Form
             </h1>
+
+            <p className="text-xs text-slate-500 sm:text-sm">
+              ผลการประเมินพนักงาน
+            </p>
           </div>
 
           <button
             onClick={() => {
               window.location.href =
-                "/admin";
+                "/dashboard";
             }}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 sm:px-4 sm:text-sm"
           >
-            ← กลับ Admin
+            ← กลับ Dashboard
           </button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        {/* =====================================================
-            TARGET HERO
-        ===================================================== */}
+      <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8">
+        {/* ===================================================
+            EMPLOYEE
+        =================================================== */}
 
-        <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 to-blue-500 p-7 text-white shadow-xl shadow-blue-100">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm text-blue-100">
+        <section className="mb-5 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-xl shadow-blue-100 sm:mb-6 sm:p-7">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs text-blue-100 sm:text-sm">
                 ผู้ถูกประเมิน
               </p>
 
-              <h2 className="mt-1 text-3xl font-black">
+              <h2 className="mt-1 break-words text-xl font-bold leading-tight sm:text-3xl">
                 {targetName ||
-                  "ไม่พบชื่อบุคคล"}
+                  "ไม่พบข้อมูล"}
               </h2>
 
-              <p className="mt-2 text-blue-100">
+              <p className="mt-2 text-sm text-blue-100 sm:text-base">
                 {targetRole ||
-                  "ไม่พบตำแหน่ง"}
+                  "-"}
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center backdrop-blur">
-                <div className="text-3xl font-black">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:min-w-[300px]">
+              <div className="rounded-2xl bg-white/15 px-3 py-4 text-center backdrop-blur sm:px-6">
+                <div className="text-2xl font-bold sm:text-3xl">
                   {completedCount}
+                  <span className="text-base font-medium sm:text-xl">
+                    {" "}
+                    / {totalEvaluators}
+                  </span>
                 </div>
 
-                <p className="mt-1 text-xs text-blue-100">
-                  ประเมินแล้ว
-                </p>
+                <div className="mt-1 text-xs text-blue-100 sm:text-sm">
+                  ผู้ประเมิน
+                </div>
               </div>
 
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center backdrop-blur">
-                <div className="text-3xl font-black">
-                  {pendingCount}
+              <div className="rounded-2xl bg-white/15 px-3 py-4 text-center backdrop-blur sm:px-6">
+                <div className="text-2xl font-bold sm:text-3xl">
+                  {averagePercent}%
                 </div>
 
-                <p className="mt-1 text-xs text-blue-100">
-                  ยังไม่ได้ประเมิน
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center backdrop-blur">
-                <div className="text-3xl font-black">
-                  {totalEvaluators}
+                <div className="mt-1 text-xs text-blue-100 sm:text-sm">
+                  คะแนนเฉลี่ย
                 </div>
-
-                <p className="mt-1 text-xs text-blue-100">
-                  ผู้ประเมินทั้งหมด
-                </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* =====================================================
+        {/* ===================================================
             PROGRESS
-        ===================================================== */}
+        =================================================== */}
 
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
+        <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-8 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-bold text-slate-900">
                 📊 ความคืบหน้าการประเมิน
               </h3>
 
-              <p className="mt-1 text-sm text-slate-500">
-                ผู้ประเมินส่งแบบประเมินแล้ว
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                จำนวนผู้ประเมินที่ส่งแบบประเมินแล้ว
               </p>
             </div>
 
-            <div className="text-2xl font-black text-blue-600">
+            <div className="text-lg font-bold text-blue-600 sm:text-xl">
               {completedCount} /{" "}
               {totalEvaluators} คน
             </div>
@@ -660,272 +638,206 @@ export default function ResultsPage({
             />
           </div>
 
-          <div className="mt-2 flex justify-between text-xs text-slate-400">
-            <span>
-              ประเมินแล้ว{" "}
-              {completedCount} คน
-            </span>
-
-            <span>
-              {progressPercent}%
-            </span>
+          <div className="mt-2 text-right text-xs text-slate-400 sm:text-sm">
+            {progressPercent}% เสร็จแล้ว
           </div>
         </section>
 
-        {/* =====================================================
-            SUMMARY
-        ===================================================== */}
+        {/* ===================================================
+            ACTION
+        =================================================== */}
 
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">
-              ผู้ประเมินทั้งหมด
-            </p>
+        <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
+              👥 รายชื่อผู้ประเมิน
+            </h2>
 
-            <p className="mt-2 text-3xl font-black text-slate-900">
-              {totalEvaluators}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              คน
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+              คลิกดูคะแนนรายข้อของผู้ประเมินแต่ละคน
             </p>
           </div>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-            <p className="text-sm text-emerald-600">
-              ประเมินแล้ว
-            </p>
+          <button
+            onClick={
+              exportExcel
+            }
+            className="w-full rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] sm:w-auto"
+          >
+            📊 Export Excel
+          </button>
+        </div>
 
-            <p className="mt-2 text-3xl font-black text-emerald-700">
-              {completedCount}
-            </p>
+        {/* ===================================================
+            EVALUATORS
+        =================================================== */}
 
-            <p className="mt-1 text-xs text-emerald-600">
-              คน
-            </p>
-          </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {results.map(
+            (item) => {
+              const result =
+                item.result;
 
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-            <p className="text-sm text-amber-600">
-              ยังไม่ได้ประเมิน
-            </p>
+              const percent =
+                result &&
+                result.maxScore >
+                  0
+                  ? Math.round(
+                      (result.totalScore /
+                        result.maxScore) *
+                        100
+                    )
+                  : 0;
 
-            <p className="mt-2 text-3xl font-black text-amber-700">
-              {pendingCount}
-            </p>
-
-            <p className="mt-1 text-xs text-amber-600">
-              คน
-            </p>
-          </div>
-        </section>
-
-        {/* =====================================================
-            EVALUATORS HEADER
-        ===================================================== */}
-
-        <section className="mt-8">
-          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-black text-slate-900">
-                👥 ผู้ประเมิน
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                รายชื่อผู้ที่มีสิทธิ์ประเมินบุคคลนี้
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {averageScore !==
-                null && (
-                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center">
-                  <p className="text-[10px] text-slate-400">
-                    คะแนนเฉลี่ย
-                  </p>
-
-                  <p className="text-xl font-black text-blue-600">
-                    {averageScore}%
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={
-                  exportExcel
-                }
-                className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                📊 Export Excel
-              </button>
-            </div>
-          </div>
-
-          {/* ===================================================
-              EVALUATOR CARDS
-          =================================================== */}
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {results.map(
-              (item) => {
-                const result =
-                  item.result;
-
-                const percent =
-                  result &&
-                  result.maxScore >
-                    0
-                    ? Math.round(
-                        (result.totalScore /
-                          result.maxScore) *
-                          100
-                      )
-                    : 0;
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`rounded-3xl border bg-white p-5 shadow-sm ${
-                      result
-                        ? "border-slate-200"
-                        : "border-dashed border-slate-300"
-                    }`}
-                  >
-                    {/* PERSON */}
-
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${
-                          result
-                            ? "bg-blue-50"
-                            : "bg-slate-100"
-                        }`}
-                      >
-                        {result
-                          ? "👤"
-                          : "⏳"}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-bold leading-6 text-slate-900">
-                          {item.name}
-                        </h3>
-
-                        <p className="mt-1 text-sm text-blue-600">
-                          {item.roleName}
-                        </p>
-                      </div>
+              return (
+                <div
+                  key={item.id}
+                  className={`rounded-3xl border bg-white p-4 shadow-sm transition sm:p-5 ${
+                    result
+                      ? "border-slate-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
+                      : "border-slate-200"
+                  }`}
+                >
+                  {/* ผู้ประเมิน */}
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${
+                        result
+                          ? "bg-blue-50"
+                          : "bg-slate-100"
+                      }`}
+                    >
+                      {result
+                        ? "👤"
+                        : "⏳"}
                     </div>
 
-                    {/* COMPLETED */}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words font-bold leading-6 text-slate-900">
+                        {item.name}
+                      </h3>
 
-                    {result ? (
-                      <>
-                        <div className="mt-5 rounded-2xl bg-slate-50 p-5">
-                          <div className="flex items-end justify-between">
-                            <div>
-                              <p className="text-xs text-slate-400">
-                                คะแนนที่ได้
-                              </p>
-
-                              <p className="mt-1 text-3xl font-black text-slate-900">
-                                {
-                                  result.totalScore
-                                }
-
-                                <span className="ml-1 text-base font-medium text-slate-400">
-                                  /
-                                  {
-                                    result.maxScore
-                                  }
-                                </span>
-                              </p>
-                            </div>
-
-                            <div className="text-right">
-                              <p className="text-2xl font-black text-blue-600">
-                                {
-                                  percent
-                                }
-                                %
-                              </p>
-
-                              <p className="text-xs text-slate-400">
-                                คะแนน
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-between text-xs">
-                          <span className="font-semibold text-emerald-600">
-                            🟢 ประเมินแล้ว
-                          </span>
-
-                          <span className="text-slate-400">
-                            {result.submittedAt
-                              ? new Date(
-                                  result.submittedAt
-                                ).toLocaleDateString(
-                                  "th-TH"
-                                )
-                              : "-"}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.location.href =
-                              `/results/${targetId}/reviewer/${item.id}`;
-                          }}
-                          className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-700"
-                        >
-                          👁️ ดูคะแนนรายข้อ →
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="mt-5 rounded-2xl bg-slate-50 p-6 text-center">
-                          <div className="text-3xl">
-                            ⏳
-                          </div>
-
-                          <p className="mt-2 font-bold text-slate-600">
-                            ยังไม่ได้ประเมิน
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-400">
-                            รอผู้ประเมินส่งแบบประเมิน
-                          </p>
-                        </div>
-                      </>
-                    )}
+                      <p className="mt-1 text-sm text-blue-600">
+                        {
+                          item.roleName
+                        }
+                      </p>
+                    </div>
                   </div>
-                );
-              }
-            )}
-          </div>
 
-          {/* NO EVALUATORS */}
+                  {result ? (
+                    <>
+                      {/* คะแนน */}
+                      <div className="mt-4 rounded-2xl bg-slate-50 p-4 sm:mt-5">
+                        <div className="flex items-end justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500 sm:text-sm">
+                              คะแนนที่ได้
+                            </p>
 
-          {results.length ===
-            0 && (
-            <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-              <div className="text-5xl">
-                📋
-              </div>
+                            <p className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
+                              {
+                                result.totalScore
+                              }
 
-              <h3 className="mt-4 text-xl font-bold text-slate-800">
-                ไม่พบผู้ประเมิน
-              </h3>
+                              <span className="text-base font-medium text-slate-400 sm:text-lg">
+                                {" "}
+                                /{" "}
+                                {
+                                  result.maxScore
+                                }
+                              </span>
+                            </p>
+                          </div>
 
-              <p className="mt-2 text-sm text-slate-500">
-                บุคคลนี้ยังไม่มีผู้ที่มีสิทธิ์ประเมิน
-              </p>
-            </div>
+                          <div className="text-right">
+                            <p className="text-xl font-bold text-blue-600 sm:text-2xl">
+                              {percent}%
+                            </p>
+
+                            <p className="text-[11px] text-slate-400 sm:text-xs">
+                              คะแนนประเมิน
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* สถานะ */}
+                      <div className="mt-3 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                          ✅ ประเมินแล้ว
+                        </span>
+
+                        <span>
+                          {result.submittedAt
+                            ? new Date(
+                                result.submittedAt
+                              ).toLocaleDateString(
+                                "th-TH"
+                              )
+                            : "-"}
+                        </span>
+                      </div>
+
+                      {/* ดูรายข้อ */}
+                      <button
+                        onClick={() => {
+                          window.location.href =
+                            `/results/${targetId}/reviewer/${item.id}`;
+                        }}
+                        className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3.5 font-semibold text-white transition hover:bg-blue-700 active:scale-[0.99]"
+                      >
+                        👁 ดูคะแนนรายข้อ →
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* ยังไม่ประเมิน */}
+                      <div className="mt-4 rounded-2xl bg-slate-50 p-5 text-center sm:mt-5">
+                        <div className="text-3xl">
+                          ⏳
+                        </div>
+
+                        <p className="mt-2 font-semibold text-slate-600">
+                          ยังไม่ได้ประเมิน
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          รอผู้ประเมินส่งแบบประเมิน
+                        </p>
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-center text-xs text-slate-400 sm:mt-4 sm:text-sm">
+                        ⏳ รอผลการประเมิน
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            }
           )}
-        </section>
+        </div>
+
+        {/* ===================================================
+            EMPTY
+        =================================================== */}
+
+        {results.length ===
+          0 && (
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12">
+            <div className="text-5xl">
+              📋
+            </div>
+
+            <h3 className="mt-4 text-lg font-bold text-slate-800 sm:text-xl">
+              ยังไม่มีผู้ประเมิน
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-500">
+              ไม่พบผู้ที่มีสิทธิ์ประเมินบุคคลนี้
+            </p>
+          </div>
+        )}
       </div>
     </main>
   );

@@ -2,307 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import {
-  employees,
-  headquarters,
-} from "@/data/employees";
+import { employees, headquarters } from "@/data/employees";
 
 type AssessmentResult = {
   evaluatorId: string;
   evaluatorName: string;
-  evaluatorRole?: string;
+  evaluatorRole: string;
 
   targetId: string;
   targetName: string;
   targetRole: string;
 
   formType: string;
+
   answers: Record<string, number>;
+
   totalScore: number;
   maxScore: number;
-  suggestion?: string;
+
+  suggestion: string;
+
   submittedAt: string;
 };
-
-type QuestionItem = {
-  id: string;
-  text: string;
-};
-
-type QuestionSection = {
-  section: string;
-  items: QuestionItem[];
-};
-
-/* =========================================================
-   แบบประเมินผู้อำนวยการ
-========================================================= */
-
-const directorQuestions: QuestionSection[] = [
-  {
-    section: "1. ด้านความรู้ความสามารถในหน้าที่",
-    items: [
-      {
-        id: "1.1",
-        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ ที่รับผิดชอบ",
-      },
-      {
-        id: "1.2",
-        text: "มีความรู้ความสามารถในการวิเคราะห์ปัญหา และการหาวิธีแก้ไขปรับปรุงพัฒนาระบบงานงาน",
-      },
-    ],
-  },
-  {
-    section: "2. ด้านการสื่อสารและการสอนงาน",
-    items: [
-      {
-        id: "2.1",
-        text: "มีการสอนงานตามมาตรฐานการปฏิบัติงานในฝ่าย",
-      },
-      {
-        id: "2.2",
-        text: "สามารถสอนงานให้สาขามีความรู้ความเข้าใจและปฏิบัติได้ถูกต้องตามมาตรฐานการปฏิบัติงานมากขึ้น",
-      },
-      {
-        id: "2.3",
-        text: "มีการตรวจติดตามงานอย่างสม่ำเสมอ พร้อมให้ข้อเสนอแนะและแนวทางในการแก้ไขปรับปรุง",
-      },
-      {
-        id: "2.4",
-        text: "สามารถสื่อสารติดต่อประสานงานกับบุคคลได้ทุกระดับอย่างเหมาะสม เพื่อผลสัมฤทธิ์ของงาน (การสื่อสาร 360 องศา)",
-      },
-      {
-        id: "2.5",
-        text: "มีการสื่อสารหรือสอนงานด้วยวิธีการ ที่เหมาะสม และน้ำเสียง วาจาที่สุภาพต่อผู้รับฟัง",
-      },
-      {
-        id: "2.6",
-        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
-      },
-      {
-        id: "2.7",
-        text: "ยินดีรับฟังความคิดเห็นและข้อเสนอแนะของสาขาเพื่อการปรับปรุงพัฒนา",
-      },
-    ],
-  },
-  {
-    section: "3. ด้านผลลัพธ์งานในหน้าที่",
-    items: [
-      {
-        id: "3.1",
-        text: "สามารถปฏิบัติงานได้ตามบทบาทหน้าที่ที่กำหนด",
-      },
-      {
-        id: "3.2",
-        text: "สามารถทำงานได้บรรลุผลตามเป้าหมายตัวชี้วัดของฝ่าย",
-      },
-    ],
-  },
-];
-
-/* =========================================================
-   แบบประเมินผู้จัดการเขต
-========================================================= */
-
-const areaManagerQuestions: QuestionSection[] = [
-  {
-    section: "1. ด้านความรู้ความสามารถในหน้าที่",
-    items: [
-      {
-        id: "1.1",
-        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ ที่รับผิดชอบ",
-      },
-      {
-        id: "1.2",
-        text: "มีความรู้ความสามารถในการวิเคราะห์ปัญหา และการหาวิธีแก้ไขปรับปรุงพัฒนาระบบงานงาน",
-      },
-    ],
-  },
-  {
-    section: "2. ด้านการสื่อสารและการสอนงาน",
-    items: [
-      {
-        id: "2.1",
-        text: "มีการสอนงานตามมาตรฐานการปฏิบัติงานในฝ่าย",
-      },
-      {
-        id: "2.2",
-        text: "สามารถสอนงานให้สาขามีความรู้ความเข้าใจและปฏิบัติได้ถูกต้องตามมาตรฐานการปฏิบัติงานมากขึ้น",
-      },
-      {
-        id: "2.3",
-        text: "มีการตรวจติดตามงานอย่างสม่ำเสมอ พร้อมให้ข้อเสนอแนะและแนวทางในการแก้ไขปรับปรุง",
-      },
-      {
-        id: "2.4",
-        text: "สามารถสื่อสารติดต่อประสานงานกับบุคคลได้ทุกระดับอย่างเหมาะสม เพื่อผลสัมฤทธิ์ของงาน (การสื่อสาร 360 องศา)",
-      },
-      {
-        id: "2.5",
-        text: "มีการสื่อสารหรือสอนงานด้วยวิธีการ ที่เหมาะสม และน้ำเสียง วาจาที่สุภาพต่อผู้รับฟัง",
-      },
-      {
-        id: "2.6",
-        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
-      },
-    ],
-  },
-  {
-    section: "3. ด้านผลลัพธ์งานในหน้าที่",
-    items: [
-      {
-        id: "3.1",
-        text: "สามารถปฏิบัติงานได้ตามบทบาทหน้าที่ที่กำหนด",
-      },
-      {
-        id: "3.2",
-        text: "สามารถพัฒนาทีมงานและสร้างพลังทีมในสาขาให้มีกำลังใจ มีไฟ ในการปฏิบัติงานได้",
-      },
-      {
-        id: "3.3",
-        text: "สามารถบริหารจัดการงานในสาขาให้ได้ผลลัพธ์ตามแผนงบประมาณกำไร 15.2",
-      },
-    ],
-  },
-];
-
-/* =========================================================
-   แบบประเมินผู้จัดการสาขา
-========================================================= */
-
-const branchManagerQuestions: QuestionSection[] = [
-  {
-    section: "1. ด้านความรู้ความสามารถในหน้าที่",
-    items: [
-      {
-        id: "1.1",
-        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ ที่รับผิดชอบ",
-      },
-      {
-        id: "1.2",
-        text: "มีความรู้ความสามารถในการวิเคราะห์ปัญหา และการหาวิธีแก้ไขปรับปรุงพัฒนาระบบงานงาน",
-      },
-    ],
-  },
-  {
-    section: "2. ด้านการสื่อสารและการสอนงาน",
-    items: [
-      {
-        id: "2.1",
-        text: "มีการสอนงานตามมาตรฐานการปฏิบัติงานในฝ่าย",
-      },
-      {
-        id: "2.2",
-        text: "สามารถสอนงานให้สาขามีความรู้ความเข้าใจและปฏิบัติได้ถูกต้องตามมาตรฐานการปฏิบัติงานมากขึ้น",
-      },
-      {
-        id: "2.3",
-        text: "มีการตรวจติดตามงานอย่างสม่ำเสมอ พร้อมให้ข้อเสนอแนะและแนวทางในการแก้ไขปรับปรุง",
-      },
-      {
-        id: "2.4",
-        text: "สามารถสื่อสารติดต่อประสานงานกับบุคคลได้ทุกระดับอย่างเหมาะสม เพื่อผลสัมฤทธิ์ของงาน (การสื่อสาร 360 องศา)",
-      },
-      {
-        id: "2.5",
-        text: "มีการสื่อสารหรือสอนงานด้วยวิธีการ ที่เหมาะสม และน้ำเสียง วาจาที่สุภาพต่อผู้รับฟัง",
-      },
-      {
-        id: "2.6",
-        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
-      },
-    ],
-  },
-  {
-    section: "3. ด้านผลลัพธ์งานในหน้าที่",
-    items: [
-      {
-        id: "3.1",
-        text: "สามารถปฏิบัติงานได้ตามบทบาทหน้าที่ที่กำหนด",
-      },
-      {
-        id: "3.2",
-        text: "สามารถพัฒนาทีมงานและสร้างพลังทีมในสาขาให้มีกำลังใจ มีไฟ ในการปฏิบัติงานได้",
-      },
-      {
-        id: "3.3",
-        text: "สามารถบริหารจัดการงานในสาขาให้ได้ผลลัพธ์ตามแผนงบประมาณกำไร 15.2",
-      },
-    ],
-  },
-];
-
-/* =========================================================
-   แบบประเมินฝ่ายสำนักงานใหญ่
-
-   ใช้ข้อความตามแบบประเมินเดิม
-========================================================= */
-
-const departmentQuestions: QuestionSection[] = [
-  {
-    section: "1. ด้านความรู้ความสามารถในหน้าที่",
-    items: [
-      {
-        id: "1.1",
-        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ ที่รับผิดชอบ",
-      },
-      {
-        id: "1.2",
-        text: "มีความรู้ความสามารถในการช่วยสาขาวิเคราะห์ปัญหา และแนะนำแนวทางในการแก้ไขปัญหาให้กับสาขาได้",
-      },
-    ],
-  },
-  {
-    section: "2. ด้านการสื่อสารและการสอนงาน",
-    items: [
-      {
-        id: "2.1",
-        text: "มีการสอนงานตามมาตรฐานการปฏิบัติงานในฝ่าย",
-      },
-      {
-        id: "2.2",
-        text: "สามารถสอนงานให้สาขามีความรู้ความเข้าใจและปฏิบัติได้ถูกต้องตามมาตรฐานการปฏิบัติงานมากขึ้น",
-      },
-      {
-        id: "2.3",
-        text: "มีการสื่อสารหรือสอนงานด้วยวิธีการ ที่เหมาะสม และน้ำเสียง วาจาที่สุภาพต่อผู้รับฟัง",
-      },
-      {
-        id: "2.4",
-        text: "มีการตรวจติดตามงานพร้อมให้คำแนะนำอย่างสม่ำเสมอ",
-      },
-      {
-        id: "2.5",
-        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
-      },
-      {
-        id: "2.6",
-        text: "ยินดีรับฟังความคิดเห็นและข้อเสนอแนะของสาขาเพื่อการปรับปรุงพัฒนา",
-      },
-    ],
-  },
-  {
-    section: "3. ด้านผลลัพธ์งานในหน้าที่",
-    items: [
-      {
-        id: "3.1",
-        text: "สามารถสอนงานในฝ่ายได้ถูกต้องตามมาตรฐานการปฏิบัติงาน",
-      },
-      {
-        id: "3.2",
-        text: "จากการสอนงานสาขาสามารถปฏิบัติงานได้ถูกต้องตามมาตรฐานมากขึ้น",
-      },
-      {
-        id: "3.3",
-        text: "จากการช่วยเหลือสนับสนุน ทำให้สาขาดำเนินไปได้ถูกต้อง ราบรื่น และบรรลุตามเป้าหมายของฝ่าย",
-      },
-    ],
-  },
-];
-
-/* =========================================================
-   คะแนน
-========================================================= */
 
 const scoreLabels: Record<number, string> = {
   1: "ต้องปรับปรุง",
@@ -312,24 +33,44 @@ const scoreLabels: Record<number, string> = {
   5: "ดีมาก",
 };
 
-function getScoreClass(score: number) {
-  if (score === 5) {
-    return "bg-emerald-50 border-emerald-200 text-emerald-700";
+const scoreColors: Record<
+  number,
+  string
+> = {
+  1: "border-red-200 bg-red-50 text-red-700",
+  2: "border-orange-200 bg-orange-50 text-orange-700",
+  3: "border-yellow-200 bg-yellow-50 text-yellow-700",
+  4: "border-blue-200 bg-blue-50 text-blue-700",
+  5: "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
+
+const formLabels: Record<string, string> = {
+  director: "แบบประเมินผู้อำนวยการ",
+  area_manager: "แบบประเมินผู้จัดการเขต",
+  branch_manager: "แบบประเมินผู้จัดการสาขา",
+  department: "แบบประเมินฝ่าย",
+};
+
+function formatDate(
+  value?: string
+) {
+  if (!value) {
+    return "-";
   }
 
-  if (score === 4) {
-    return "bg-blue-50 border-blue-200 text-blue-700";
+  try {
+    return new Date(
+      value
+    ).toLocaleString(
+      "th-TH",
+      {
+        dateStyle: "long",
+        timeStyle: "short",
+      }
+    );
+  } catch {
+    return "-";
   }
-
-  if (score === 3) {
-    return "bg-amber-50 border-amber-200 text-amber-700";
-  }
-
-  if (score === 2) {
-    return "bg-orange-50 border-orange-200 text-orange-700";
-  }
-
-  return "bg-red-50 border-red-200 text-red-700";
 }
 
 export default function ReviewerResultPage() {
@@ -343,255 +84,304 @@ export default function ReviewerResultPage() {
         : "";
 
   const reviewerId =
-    typeof params.reviewerId === "string"
+    typeof params.reviewerId ===
+    "string"
       ? params.reviewerId
-      : Array.isArray(params.reviewerId)
+      : Array.isArray(
+            params.reviewerId
+          )
         ? params.reviewerId[0]
         : "";
 
   const [result, setResult] =
-    useState<AssessmentResult | null>(null);
+    useState<AssessmentResult | null>(
+      null
+    );
 
   const [loading, setLoading] =
     useState(true);
 
-  const [questions, setQuestions] =
-    useState<QuestionSection[]>([]);
+  const [notFound, setNotFound] =
+    useState(false);
 
   useEffect(() => {
-    try {
-      /*
-       * ---------------------------------------------
-       * โหลดผลประเมิน
-       * ---------------------------------------------
-       */
-
-      const key =
-        `assessment_result_${reviewerId}_${targetId}`;
-
-      const saved =
-        localStorage.getItem(key);
-
-      if (saved) {
-        const parsed =
-          JSON.parse(saved);
-
-        setResult(parsed);
-
+    function loadResult() {
+      try {
         /*
-         * ---------------------------------------------
-         * เลือกชุดคำถามตาม formType
-         * ---------------------------------------------
+         * =====================================================
+         * ADMIN ONLY
+         * =====================================================
          */
+        const adminAccess =
+          sessionStorage.getItem(
+            "assessment_admin_access"
+          );
 
         if (
-          parsed.formType ===
-          "department"
+          adminAccess !== "true"
         ) {
-          setQuestions(
-            departmentQuestions
-          );
-        } else if (
-          parsed.formType ===
-          "area_manager"
-        ) {
-          setQuestions(
-            areaManagerQuestions
-          );
-        } else if (
-          parsed.formType ===
-          "branch_manager"
-        ) {
-          setQuestions(
-            branchManagerQuestions
-          );
-        } else {
-          setQuestions(
-            directorQuestions
-          );
+          window.location.href =
+            "/dashboard";
+          return;
         }
-      } else {
-        /*
-         * fallback:
-         * เผื่อ key มีข้อมูลแต่ชื่อ key
-         * ไม่ตรงที่คาดไว้
-         */
 
-        for (
-          let i = 0;
-          i < localStorage.length;
-          i++
+        if (
+          !targetId ||
+          !reviewerId
         ) {
-          const storageKey =
-            localStorage.key(i);
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
 
-          if (
-            !storageKey ||
-            !storageKey.startsWith(
-              "assessment_result_"
-            )
-          ) {
-            continue;
-          }
+        /*
+         * =====================================================
+         * อ่านผลจาก key หลัก
+         * =====================================================
+         */
+        const primaryKey =
+          `assessment_result_${reviewerId}_${targetId}`;
 
+        let foundResult:
+          | AssessmentResult
+          | null = null;
+
+        const primaryResult =
+          localStorage.getItem(
+            primaryKey
+          );
+
+        if (primaryResult) {
           try {
-            const raw =
-              localStorage.getItem(
-                storageKey
+            const parsed =
+              JSON.parse(
+                primaryResult
               );
 
-            if (!raw) continue;
-
-            const parsed =
-              JSON.parse(raw);
-
             if (
+              parsed &&
               parsed.targetId ===
                 targetId &&
               parsed.evaluatorId ===
                 reviewerId
             ) {
-              setResult(parsed);
-
-              if (
-                parsed.formType ===
-                "department"
-              ) {
-                setQuestions(
-                  departmentQuestions
-                );
-              } else if (
-                parsed.formType ===
-                "area_manager"
-              ) {
-                setQuestions(
-                  areaManagerQuestions
-                );
-              } else if (
-                parsed.formType ===
-                "branch_manager"
-              ) {
-                setQuestions(
-                  branchManagerQuestions
-                );
-              } else {
-                setQuestions(
-                  directorQuestions
-                );
-              }
-
-              break;
+              foundResult = parsed;
             }
           } catch {
-            // ข้ามข้อมูลเสีย
+            foundResult = null;
           }
         }
-      }
-    } catch (error) {
-      console.error(
-        "โหลดรายละเอียดคะแนนไม่สำเร็จ:",
-        error
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [targetId, reviewerId]);
 
-  /* =========================================================
-     Loading
-  ========================================================= */
+        /*
+         * =====================================================
+         * รองรับข้อมูลเก่า
+         * =====================================================
+         */
+        if (!foundResult) {
+          for (
+            let index = 0;
+            index <
+            localStorage.length;
+            index++
+          ) {
+            const key =
+              localStorage.key(
+                index
+              );
+
+            if (
+              !key ||
+              !key.startsWith(
+                "assessment_result_"
+              )
+            ) {
+              continue;
+            }
+
+            try {
+              const raw =
+                localStorage.getItem(
+                  key
+                );
+
+              if (!raw) {
+                continue;
+              }
+
+              const parsed =
+                JSON.parse(raw);
+
+              if (
+                parsed &&
+                parsed.targetId ===
+                  targetId &&
+                parsed.evaluatorId ===
+                  reviewerId
+              ) {
+                foundResult =
+                  parsed;
+                break;
+              }
+            } catch {
+              // ข้ามข้อมูลที่อ่านไม่ได้
+            }
+          }
+        }
+
+        /*
+         * =====================================================
+         * ถ้าเจอผล
+         * =====================================================
+         */
+        if (foundResult) {
+          setResult(
+            foundResult
+          );
+        } else {
+          setNotFound(true);
+        }
+      } catch (error) {
+        console.error(
+          "ไม่สามารถโหลดรายละเอียดผลการประเมิน:",
+          error
+        );
+
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadResult();
+  }, [
+    targetId,
+    reviewerId,
+  ]);
+
+  /*
+   * =========================================================
+   * Loading
+   * =========================================================
+   */
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-5xl">
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-            <div className="text-4xl">
-              ⏳
-            </div>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
-            <p className="mt-4 font-bold text-slate-700">
-              กำลังโหลดรายละเอียดคะแนน...
-            </p>
-          </div>
+          <p className="mt-4 font-semibold text-slate-700">
+            กำลังโหลดรายละเอียดผลการประเมิน...
+          </p>
         </div>
       </main>
     );
   }
 
-  /* =========================================================
-     ไม่พบผลประเมิน
-  ========================================================= */
+  /*
+   * =========================================================
+   * Not Found
+   * =========================================================
+   */
 
-  if (!result) {
+  if (
+    notFound ||
+    !result
+  ) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-5xl">
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-            <div className="text-5xl">
-              📋
-            </div>
-
-            <h1 className="mt-4 text-xl font-black text-slate-900">
-              ไม่พบผลการประเมิน
-            </h1>
-
-            <p className="mt-2 text-sm text-slate-500">
-              อาจยังไม่ได้ส่งแบบประเมิน
-              หรือข้อมูลถูกลบออกจากเครื่อง
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href =
-                  `/results/${targetId}`;
-              }}
-              className="mt-6 rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white hover:bg-blue-700"
-            >
-              ← กลับผลการประเมิน
-            </button>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-xl sm:p-9">
+          <div className="text-5xl">
+            📋
           </div>
+
+          <h1 className="mt-4 text-xl font-bold text-slate-900 sm:text-2xl">
+            ไม่พบผลการประเมิน
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            ไม่พบข้อมูลผลการประเมินของผู้ประเมินคนนี้
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href =
+                `/results/${targetId}`;
+            }}
+            className="mt-6 w-full rounded-2xl bg-blue-600 px-6 py-3.5 font-bold text-white transition hover:bg-blue-700 sm:w-auto"
+          >
+            ← กลับผลการประเมิน
+          </button>
         </div>
       </main>
     );
   }
 
-  /* =========================================================
-     ข้อมูลผู้ถูกประเมิน
-  ========================================================= */
+  /*
+   * =========================================================
+   * เตรียมข้อมูล
+   * =========================================================
+   */
 
-  const target =
+  const targetEmployee =
     employees.find(
       (employee) =>
-        employee.id === targetId
+        employee.id ===
+        result.targetId
     );
 
-  const isHeadquarters =
-    targetId.startsWith("hq-");
-
-  const headquartersName =
-    isHeadquarters
-      ? headquarters[
-          Number(
-            targetId.replace("hq-", "")
-          ) - 1
-        ]
-      : "";
-
-  const displayTargetName =
+  let targetName =
     result.targetName ||
-    headquartersName ||
-    target?.name ||
+    targetEmployee?.name ||
     "";
 
-  const displayTargetRole =
+  let targetRole =
     result.targetRole ||
-    (isHeadquarters
-      ? "ฝ่ายสำนักงานใหญ่"
-      : target?.roleName || "");
+    targetEmployee?.roleName ||
+    "";
 
-  const scorePercent =
+  if (
+    result.targetId.startsWith(
+      "hq-"
+    )
+  ) {
+    const hqIndex =
+      Number(
+        result.targetId.replace(
+          "hq-",
+          ""
+        )
+      ) - 1;
+
+    const hqName =
+      headquarters[hqIndex];
+
+    if (hqName) {
+      targetName = hqName;
+      targetRole =
+        "ฝ่ายสำนักงานใหญ่";
+    }
+  }
+
+  const reviewer =
+    employees.find(
+      (employee) =>
+        employee.id ===
+        reviewerId
+    );
+
+  const evaluatorName =
+    result.evaluatorName ||
+    reviewer?.name ||
+    "-";
+
+  const evaluatorRole =
+    result.evaluatorRole ||
+    reviewer?.roleName ||
+    "-";
+
+  const percentage =
     result.maxScore > 0
       ? Math.round(
           (result.totalScore /
@@ -600,15 +390,43 @@ export default function ReviewerResultPage() {
         )
       : 0;
 
+  const answerEntries =
+    Object.entries(
+      result.answers || {}
+    ).sort(
+      ([a], [b]) =>
+        a.localeCompare(
+          b,
+          undefined,
+          {
+            numeric: true,
+          }
+        )
+    );
+
+  /*
+   * =========================================================
+   * Main
+   * =========================================================
+   */
+
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6">
-      <div className="mx-auto max-w-5xl">
+    <main className="min-h-screen bg-slate-100 pb-10 sm:pb-16">
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
 
-        {/* ===================================================
-            Header
-        =================================================== */}
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-3 py-3 sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-blue-600 sm:text-sm">
+              Assessment Form
+            </p>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <h1 className="truncate text-base font-bold text-slate-900 sm:text-xl">
+              รายละเอียดผลการประเมิน
+            </h1>
+          </div>
 
           <button
             type="button"
@@ -616,318 +434,277 @@ export default function ReviewerResultPage() {
               window.location.href =
                 `/results/${targetId}`;
             }}
-            className="mb-6 text-sm font-semibold text-slate-500 hover:text-blue-600"
+            className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 sm:px-4 sm:text-sm"
           >
-            ← กลับผลการประเมิน
+            ← กลับ
           </button>
+        </div>
+      </header>
 
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mx-auto max-w-5xl px-3 py-5 sm:px-5 sm:py-8">
+        {/* ===================================================
+            TARGET
+        =================================================== */}
 
-            <div className="flex items-center gap-4">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-5 text-white sm:px-7 sm:py-7">
+            <p className="text-xs font-medium text-blue-100 sm:text-sm">
+              ผู้ถูกประเมิน
+            </p>
 
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-3xl">
-                👤
-              </div>
+            <h2 className="mt-1 break-words text-xl font-bold leading-tight sm:text-3xl">
+              {targetName}
+            </h2>
 
-              <div>
-                <p className="text-sm font-bold text-blue-600">
-                  รายละเอียดการประเมิน
-                </p>
-
-                <h1 className="mt-1 text-2xl font-black text-slate-900 sm:text-3xl">
-                  {displayTargetName}
-                </h1>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {displayTargetRole}
-                </p>
-              </div>
-
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 px-6 py-5 lg:min-w-[220px]">
-
-              <p className="text-sm font-semibold text-slate-500">
-                คะแนนรวม
-              </p>
-
-              <div className="mt-1 flex items-end gap-2">
-                <span className="text-4xl font-black text-blue-600">
-                  {result.totalScore}
-                </span>
-
-                <span className="mb-1 text-lg font-bold text-slate-400">
-                  / {result.maxScore}
-                </span>
-              </div>
-
-              <p className="mt-1 text-sm font-bold text-slate-500">
-                {scorePercent}%
-              </p>
-
-            </div>
-
+            <p className="mt-2 break-words text-sm text-blue-100 sm:text-base">
+              {targetRole}
+            </p>
           </div>
         </section>
 
         {/* ===================================================
-            Evaluator
+            EVALUATOR
         =================================================== */}
 
-        <section className="mt-6 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
-
-          <div className="flex items-center gap-4">
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-xl">
-              📝
+        <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl sm:h-14 sm:w-14">
+              👤
             </div>
 
-            <div>
-              <p className="text-sm font-semibold text-slate-500">
+            <div className="min-w-0">
+              <p className="text-xs text-slate-400 sm:text-sm">
                 ผู้ประเมิน
               </p>
 
-              <h2 className="text-xl font-black text-slate-900">
-                {result.evaluatorName}
+              <h2 className="mt-1 break-words text-lg font-bold text-slate-900 sm:text-xl">
+                {evaluatorName}
               </h2>
 
-              <p className="text-sm text-slate-500">
-                {result.evaluatorRole ||
-                  "ไม่ระบุตำแหน่ง"}
+              <p className="mt-1 break-words text-sm text-blue-600">
+                {evaluatorRole}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================
+            SCORE SUMMARY
+        =================================================== */}
+
+        <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+              <p className="text-xs text-slate-500 sm:text-sm">
+                คะแนนรวม
+              </p>
+
+              <p className="mt-1 text-3xl font-black text-slate-900">
+                {result.totalScore}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-400">
+                จาก {result.maxScore} คะแนน
               </p>
             </div>
 
-          </div>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-center">
+              <p className="text-xs text-blue-600 sm:text-sm">
+                คิดเป็น
+              </p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <p className="mt-1 text-3xl font-black text-blue-700">
+                {percentage}%
+              </p>
 
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-400">
+              <p className="mt-1 text-sm text-blue-500">
+                ของคะแนนเต็ม
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+              <p className="text-xs text-slate-500 sm:text-sm">
                 แบบประเมิน
               </p>
 
-              <p className="mt-1 font-bold text-slate-800">
-                {result.formType ===
-                "director"
-                  ? "แบบประเมินผู้อำนวยการ"
-                  : result.formType ===
-                      "area_manager"
-                    ? "แบบประเมินผู้จัดการเขต"
-                    : result.formType ===
-                        "branch_manager"
-                      ? "แบบประเมินผู้จัดการสาขา"
-                      : "แบบประเมินฝ่าย"}
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-800 sm:text-base">
+                {formLabels[
+                  result.formType
+                ] ||
+                  "แบบประเมิน"}
               </p>
             </div>
+          </div>
 
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-400">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-400">
                 วันที่ประเมิน
               </p>
 
-              <p className="mt-1 font-bold text-slate-800">
-                {new Date(
+              <p className="mt-1 break-words text-sm font-bold text-slate-800 sm:text-base">
+                {formatDate(
                   result.submittedAt
-                ).toLocaleString("th-TH")}
+                )}
               </p>
             </div>
 
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-400">
+                จำนวนข้อที่ตอบ
+              </p>
+
+              <p className="mt-1 text-base font-bold text-slate-800">
+                {answerEntries.length} ข้อ
+              </p>
+            </div>
           </div>
         </section>
 
         {/* ===================================================
-            Question scores
+            ANSWERS
         =================================================== */}
 
-        <section className="mt-6">
+        <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
+                📊 คะแนนรายข้อ
+              </h2>
 
-          <div className="mb-4">
-            <h2 className="text-xl font-black text-slate-900">
-              📊 คะแนนรายข้อ
-            </h2>
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                รายละเอียดคะแนนที่ผู้ประเมินให้ในแต่ละข้อ
+              </p>
+            </div>
 
-            <p className="mt-1 text-sm text-slate-500">
-              รายละเอียดคะแนนจากผู้ประเมินแต่ละข้อ
-            </p>
+            <div className="shrink-0 rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-600">
+              {answerEntries.length} ข้อ
+            </div>
           </div>
 
-          <div className="space-y-5">
-
-            {questions.map(
-              (section) => {
-
-                const sectionTotal =
-                  section.items.reduce(
-                    (sum, item) =>
-                      sum +
-                      (result.answers[
-                        item.id
-                      ] || 0),
-                    0
+          <div className="mt-5 space-y-2">
+            {answerEntries.map(
+              ([
+                questionId,
+                scoreValue,
+              ]) => {
+                const score =
+                  Number(
+                    scoreValue
                   );
 
-                const sectionMax =
-                  section.items.length *
-                  5;
-
                 return (
-                  <section
-                    key={section.section}
-                    className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+                  <div
+                    key={
+                      questionId
+                    }
+                    className="rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:p-4"
                   >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-700 sm:text-base">
+                          ข้อ{" "}
+                          {
+                            questionId
+                          }
+                        </p>
 
-                    {/* Section header */}
-
-                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-5 sm:px-6">
-
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-
-                        <h3 className="font-black text-slate-900">
-                          {section.section}
-                        </h3>
-
-                        <span className="w-fit rounded-full bg-white px-3 py-1 text-sm font-bold text-slate-600 shadow-sm">
-                          {sectionTotal} /{" "}
-                          {sectionMax} คะแนน
-                        </span>
-
+                        <p className="mt-0.5 text-xs text-slate-400 sm:text-sm">
+                          {scoreLabels[
+                            score
+                          ] ||
+                            "ไม่ระบุ"}
+                        </p>
                       </div>
 
+                      <div
+                        className={`shrink-0 rounded-xl border px-3 py-2 text-sm font-bold sm:px-4 sm:text-base ${
+                          scoreColors[
+                            score
+                          ] ||
+                          "border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        {score} / 5
+                      </div>
                     </div>
-
-                    {/* Questions */}
-
-                    <div className="divide-y divide-slate-100">
-
-                      {section.items.map(
-                        (question) => {
-
-                          const score =
-                            result.answers[
-                              question.id
-                            ] || 0;
-
-                          return (
-                            <div
-                              key={
-                                question.id
-                              }
-                              className="p-5 sm:p-6"
-                            >
-
-                              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-
-                                <div className="flex gap-3">
-
-                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black text-slate-600">
-                                    {
-                                      question.id
-                                    }
-                                  </div>
-
-                                  <p className="pt-1 text-sm font-medium leading-6 text-slate-700">
-                                    {
-                                      question.text
-                                    }
-                                  </p>
-
-                                </div>
-
-                                <div
-                                  className={`shrink-0 rounded-2xl border px-5 py-3 text-center ${getScoreClass(
-                                    score
-                                  )}`}
-                                >
-                                  <p className="text-2xl font-black">
-                                    {score}
-                                  </p>
-
-                                  <p className="text-xs font-bold">
-                                    {scoreLabels[
-                                      score
-                                    ] ||
-                                      "ไม่ระบุ"}
-                                  </p>
-                                </div>
-
-                              </div>
-
-                            </div>
-                          );
-                        }
-                      )}
-
-                    </div>
-                  </section>
+                  </div>
                 );
               }
             )}
-
           </div>
+
+          {answerEntries.length ===
+            0 && (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center">
+              <div className="text-3xl">
+                📝
+              </div>
+
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                ยังไม่มีข้อมูลคะแนนรายข้อ
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ===================================================
-            Suggestion
+            SUGGESTION
         =================================================== */}
 
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-6">
+          <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
+            💬 สิ่งที่ควรพัฒนาปรับปรุง / ข้อเสนอแนะ
+          </h2>
 
-          <div className="flex items-center gap-3">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-100 text-xl">
-              💬
-            </div>
-
-            <div>
-              <h2 className="font-black text-slate-900">
-                {result.formType ===
-                "department"
-                  ? "ข้อเสนอแนะ"
-                  : "สิ่งที่ควรพัฒนาปรับปรุง"}
-              </h2>
-
-              <p className="text-sm text-slate-500">
-                ความคิดเห็นจากผู้ประเมิน
-              </p>
-            </div>
-
-          </div>
-
-          <div className="mt-5 rounded-2xl bg-slate-50 p-5">
-
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
             {result.suggestion ? (
-              <p className="whitespace-pre-wrap leading-7 text-slate-700">
+              <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700 sm:text-base">
                 {result.suggestion}
               </p>
             ) : (
-              <p className="text-sm italic text-slate-400">
-                ไม่มีข้อเสนอแนะ
-              </p>
+              <div className="py-3 text-center">
+                <div className="text-3xl">
+                  💬
+                </div>
+
+                <p className="mt-2 text-sm text-slate-400">
+                  ไม่มีข้อเสนอแนะ
+                </p>
+              </div>
             )}
-
           </div>
-
         </section>
 
         {/* ===================================================
-            Bottom
+            FOOTER ACTION
         =================================================== */}
 
-        <div className="mt-6 flex justify-center">
+        <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-bold text-slate-900">
+                รายละเอียดผลการประเมิน
+              </p>
 
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href =
-                `/results/${targetId}`;
-            }}
-            className="rounded-2xl bg-slate-900 px-7 py-3 font-bold text-white shadow-sm transition hover:bg-slate-800"
-          >
-            ← กลับรายชื่อผู้ประเมิน
-          </button>
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                {evaluatorName} ประเมิน{" "}
+                {targetName}
+              </p>
+            </div>
 
-        </div>
-
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href =
+                  `/results/${targetId}`;
+              }}
+              className="w-full rounded-2xl bg-blue-600 px-6 py-3.5 font-bold text-white transition hover:bg-blue-700 active:scale-[0.99] sm:w-auto"
+            >
+              ← กลับรายชื่อผู้ประเมิน
+            </button>
+          </div>
+        </section>
       </div>
     </main>
   );
