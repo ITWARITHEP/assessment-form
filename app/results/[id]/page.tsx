@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+
 import { employees, headquarters } from "@/data/employees";
 import { getEvaluationEvaluators } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -400,47 +402,24 @@ export default function ResultsPage({
       return;
     }
 
-    const rows: string[][] = [];
+    /*
+     * -------------------------------------------------------
+     * Sheet 1 : ผลการประเมิน
+     * -------------------------------------------------------
+     */
 
-    rows.push([
-      "ผลการประเมินพนักงาน",
-    ]);
-
-    rows.push([
-      "ผู้ถูกประเมิน",
-      targetName,
-    ]);
-
-    rows.push([
-      "ตำแหน่ง",
-      targetRole,
-    ]);
-
-    rows.push([]);
-
-    rows.push([
-      "ผู้ประเมิน",
-      "ตำแหน่ง",
-      "คะแนน",
-      "คะแนนเต็ม",
-      "เปอร์เซ็นต์",
-      "วันที่ประเมิน",
-      "ข้อเสนอแนะ",
-    ]);
-
-    results.forEach((item) => {
+    const rows = results.map((item) => {
       if (!item.result) {
-        rows.push([
-          item.name,
-          item.roleName,
-          "ยังไม่ได้ประเมิน",
-          "",
-          "",
-          "",
-          "",
-        ]);
-
-        return;
+        return {
+          "ผู้ประเมิน": item.name,
+          "ตำแหน่ง": item.roleName,
+          "สถานะ": "ยังไม่ได้ประเมิน",
+          "คะแนน": "",
+          "คะแนนเต็ม": "",
+          "เปอร์เซ็นต์": "",
+          "วันที่ประเมิน": "",
+          "ข้อเสนอแนะ": "",
+        };
       }
 
       const result = item.result;
@@ -454,63 +433,122 @@ export default function ResultsPage({
             )
           : 0;
 
-      rows.push([
-        result.evaluatorName,
-        result.evaluatorRole,
-        String(result.totalScore),
-        String(result.maxScore),
-        `${percent}%`,
-        result.submittedAt
-          ? new Date(
-              result.submittedAt
-            ).toLocaleString("th-TH")
-          : "",
-        result.suggestion || "",
-      ]);
+      return {
+        "ผู้ประเมิน":
+          result.evaluatorName,
+
+        "ตำแหน่ง":
+          result.evaluatorRole,
+
+        "สถานะ":
+          "ประเมินแล้ว",
+
+        "คะแนน":
+          result.totalScore,
+
+        "คะแนนเต็ม":
+          result.maxScore,
+
+        "เปอร์เซ็นต์":
+          `${percent}%`,
+
+        "วันที่ประเมิน":
+          result.submittedAt
+            ? new Date(
+                result.submittedAt
+              ).toLocaleString("th-TH")
+            : "",
+
+        "ข้อเสนอแนะ":
+          result.suggestion || "",
+      };
     });
 
-    const csv = rows
-      .map((row) =>
-        row
-          .map((value) => {
-            const text = String(
-              value ?? ""
-            );
+    const worksheet =
+      XLSX.utils.json_to_sheet(rows);
 
-            return `"${text.replace(
-              /"/g,
-              '""'
-            )}"`;
-          })
-          .join(",")
-      )
-      .join("\n");
+    /*
+     * -------------------------------------------------------
+     * กำหนดความกว้างคอลัมน์
+     * -------------------------------------------------------
+     */
 
-    const blob = new Blob(
-      ["\ufeff" + csv],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
+    worksheet["!cols"] = [
+      { wch: 30 },
+      { wch: 30 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 25 },
+      { wch: 45 },
+    ];
+
+    /*
+     * -------------------------------------------------------
+     * Sheet 2 : สรุป
+     * -------------------------------------------------------
+     */
+
+    const summaryRows = [
+      ["ผลการประเมินพนักงาน"],
+      [],
+      ["ผู้ถูกประเมิน", targetName],
+      ["ตำแหน่ง", targetRole],
+      [],
+      ["ผู้ประเมินทั้งหมด", totalEvaluators],
+      ["ประเมินแล้ว", completedCount],
+      ["รอประเมิน", totalEvaluators - completedCount],
+      ["ความคืบหน้า", `${progressPercent}%`],
+      ["คะแนนเฉลี่ย", `${averagePercent}%`],
+    ];
+
+    const summarySheet =
+      XLSX.utils.aoa_to_sheet(
+        summaryRows
+      );
+
+    summarySheet["!cols"] = [
+      { wch: 28 },
+      { wch: 45 },
+    ];
+
+    /*
+     * -------------------------------------------------------
+     * สร้าง Workbook
+     * -------------------------------------------------------
+     */
+
+    const workbook =
+      XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      summarySheet,
+      "สรุป"
     );
 
-    const url =
-      URL.createObjectURL(blob);
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "ผลการประเมิน"
+    );
 
-    const link =
-      document.createElement("a");
+    /*
+     * -------------------------------------------------------
+     * ดาวน์โหลดเป็น Excel จริง
+     * -------------------------------------------------------
+     */
 
-    link.href = url;
+    const safeName =
+      targetName
+        .replace(/[\\/:*?"<>|]/g, "")
+        .trim() || "ผู้ถูกประเมิน";
 
-    link.download =
-      `ผลการประเมิน_${targetName}.csv`;
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
+    XLSX.writeFile(
+      workbook,
+      `ผลการประเมิน_${safeName}.xlsx`
+    );
   };
 
   /*
