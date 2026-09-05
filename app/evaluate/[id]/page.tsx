@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { employees, headquarters } from "@/data/employees";
 import { canEvaluate } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
 /* =========================================================
    แบบประเมินผู้อำนวยการ
@@ -272,6 +273,7 @@ const departmentQuestions = [
 /* =========================================================
    คะแนน
 ========================================================= */
+
 const scores = [
   {
     value: 1,
@@ -287,7 +289,7 @@ const scores = [
   },
   {
     value: 4,
-    label: "\u0E14\u0E35",
+    label: "ดี",
   },
   {
     value: 5,
@@ -339,13 +341,13 @@ export default function EvaluationPage() {
   const isBranchManager = target?.role === "branch_manager";
 
   const evaluationQuestions: QuestionSection[] =
-  isHeadquarters
-    ? departmentQuestions
-    : isAreaManager
-      ? areaManagerQuestions
-      : isBranchManager
-        ? branchManagerQuestions
-        : directorQuestions;
+    isHeadquarters
+      ? departmentQuestions
+      : isAreaManager
+        ? areaManagerQuestions
+        : isBranchManager
+          ? branchManagerQuestions
+          : directorQuestions;
 
   const formTitle = isHeadquarters
     ? "แบบประเมินฝ่าย"
@@ -364,7 +366,9 @@ export default function EvaluationPage() {
         : "🏢";
 
   const headquartersTarget = isHeadquarters
-    ? headquarters[Number(id.replace("hq-", "")) - 1]
+    ? headquarters[
+        Number(id.replace("hq-", "")) - 1
+      ]
     : null;
 
   const targetName =
@@ -382,6 +386,9 @@ export default function EvaluationPage() {
   const [checkingPermission, setCheckingPermission] =
     useState(true);
 
+  const [checkingPreviousResult, setCheckingPreviousResult] =
+    useState(true);
+
   const [answers, setAnswers] =
     useState<Record<string, number>>({});
 
@@ -391,95 +398,154 @@ export default function EvaluationPage() {
   const [saving, setSaving] =
     useState(false);
 
+  /*
+   * =========================================================
+   * ตรวจสิทธิ์ + ตรวจว่ามีผลประเมินใน Supabase แล้วหรือยัง
+   * =========================================================
+   */
+
   useEffect(() => {
     if (!id) return;
 
-    const savedUserId =
-      localStorage.getItem(
-        "assessment_user"
-      );
+    let alive = true;
 
-    if (!savedUserId) {
-      alert(
-        "กรุณาเข้าสู่ระบบก่อนประเมิน"
-      );
-
-      window.location.href = "/";
-      return;
-    }
-
-    const currentEvaluator =
-      employees.find(
-        (employee) =>
-          employee.id === savedUserId
-      );
-
-    if (!currentEvaluator) {
-      localStorage.removeItem(
-        "assessment_user"
-      );
-
-      alert(
-        "ไม่พบข้อมูลผู้ประเมิน"
-      );
-
-      window.location.href = "/";
-      return;
-    }
-
-    if (
-      !canEvaluate(
-        currentEvaluator.id,
-        id
-      )
-    ) {
-      alert(
-        "คุณไม่มีสิทธิ์ประเมินบุคคลนี้"
-      );
-
-      window.location.href =
-        "/dashboard";
-
-      return;
-    }
-
-    setEvaluatorId(
-      currentEvaluator.id
-    );
-
-    const resultKey =
-      `assessment_result_${currentEvaluator.id}_${id}`;
-
-    const savedResult =
-      localStorage.getItem(
-        resultKey
-      );
-
-    if (savedResult) {
+    async function checkAccess() {
       try {
-        const result =
-          JSON.parse(savedResult);
+        const savedUserId =
+          localStorage.getItem(
+            "assessment_user"
+          );
+
+        if (!savedUserId) {
+          alert(
+            "กรุณาเข้าสู่ระบบก่อนประเมิน"
+          );
+
+          window.location.href = "/";
+          return;
+        }
+
+        const currentEvaluator =
+          employees.find(
+            (employee) =>
+              employee.id ===
+              savedUserId
+          );
+
+        if (!currentEvaluator) {
+          localStorage.removeItem(
+            "assessment_user"
+          );
+
+          alert(
+            "ไม่พบข้อมูลผู้ประเมิน"
+          );
+
+          window.location.href = "/";
+          return;
+        }
 
         if (
-          result &&
-          typeof result === "object"
+          !canEvaluate(
+            currentEvaluator.id,
+            id
+          )
         ) {
-          setAnswers(
-            result.answers || {}
+          alert(
+            "คุณไม่มีสิทธิ์ประเมินบุคคลนี้"
           );
 
-          setSuggestion(
-            result.suggestion || ""
+          window.location.href =
+            "/dashboard";
+
+          return;
+        }
+
+        if (!alive) return;
+
+        setEvaluatorId(
+          currentEvaluator.id
+        );
+
+        setCheckingPermission(false);
+
+        /*
+         * -----------------------------------------------------
+         * ตรวจจาก Supabase เท่านั้น
+         * -----------------------------------------------------
+         */
+
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("assessment_results")
+          .select("id")
+          .eq(
+            "evaluator_id",
+            currentEvaluator.id
+          )
+          .eq(
+            "target_id",
+            id
+          )
+          .maybeSingle();
+
+        if (error) {
+          console.error(
+            "ไม่สามารถตรวจสอบผลประเมินเดิม:",
+            error
+          );
+
+          alert(
+            `ไม่สามารถตรวจสอบสถานะการประเมินได้\n\n${error.message}`
+          );
+
+          return;
+        }
+
+        if (data) {
+          alert(
+            "คุณประเมินบุคคลนี้ไปแล้ว\n\nสามารถดูผลการประเมินได้จาก Dashboard"
+          );
+
+          window.location.href =
+            "/dashboard";
+
+          return;
+        }
+
+        /*
+         * ไม่มีข้อมูลใน Supabase
+         * = สามารถประเมินได้
+         */
+
+        if (alive) {
+          setCheckingPreviousResult(
+            false
           );
         }
-      } catch {
+      } catch (error) {
         console.error(
-          "อ่านผลประเมินเดิมไม่สำเร็จ"
+          "เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์:",
+          error
+        );
+
+        alert(
+          `เกิดข้อผิดพลาด\n\n${
+            error instanceof Error
+              ? error.message
+              : String(error)
+          }`
         );
       }
     }
 
-    setCheckingPermission(false);
+    checkAccess();
+
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   const totalQuestions =
@@ -520,6 +586,12 @@ export default function EvaluationPage() {
       [questionId]: score,
     }));
   };
+
+  /*
+   * =========================================================
+   * บันทึกผล
+   * =========================================================
+   */
 
   const handleSubmit = async () => {
     console.log(
@@ -621,13 +693,12 @@ export default function EvaluationPage() {
     setSaving(true);
 
     try {
-      const resultKey =
-        `assessment_result_${evaluator.id}_${id}`;
-
-      localStorage.setItem(
-        resultKey,
-        JSON.stringify(result)
-      );
+      /*
+       * -----------------------------------------------------
+       * ส่งไป Next.js API
+       * ไม่มีการเก็บผลประเมินใน localStorage
+       * -----------------------------------------------------
+       */
 
       console.log(
         "📤 ส่งข้อมูลไป /api/assessment-results",
@@ -727,49 +798,80 @@ export default function EvaluationPage() {
             responseData?.error ||
             responseText ||
             "ไม่ทราบสาเหตุ"
-          }\n\nข้อมูลถูกสำรองไว้ในเครื่องแล้ว`
+          }`
         );
 
         setSaving(false);
         return;
       }
 
+      /*
+       * -----------------------------------------------------
+       * บันทึกสำเร็จใน Supabase
+       * -----------------------------------------------------
+       */
+
       alert(
         `✅ บันทึกแบบประเมินเรียบร้อยแล้ว\n\nผู้ประเมิน:\n${evaluator.name}\n\nผู้ถูกประเมิน:\n${targetName}\n\nคะแนน:\n${totalScore} / ${maxScore}\n\nSupabase ID:\n${responseData.data?.id ?? "-"}`
       );
 
+      setAnswers({});
+      setSuggestion("");
       setSaving(false);
 
       window.location.href =
         "/dashboard";
     } catch (error) {
+      console.error(
+        "🔥 SUBMIT ERROR:",
+        error
+      );
+
       alert(
         `เกิดข้อผิดพลาดในการส่งข้อมูล\n\n${
           error instanceof Error
             ? error.message
             : String(error)
-        }\n\nข้อมูลถูกสำรองไว้ในเครื่องแล้ว`
+        }`
       );
 
       setSaving(false);
     }
   };
 
-  if (checkingPermission) {
+  /*
+   * =========================================================
+   * Loading
+   * =========================================================
+   */
+
+  if (
+    checkingPermission ||
+    checkingPreviousResult
+  ) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white px-6 py-10 text-center shadow-xl">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
           <p className="mt-4 font-semibold text-slate-700">
-            กำลังตรวจสอบสิทธิ์...
+            กำลังตรวจสอบสถานะการประเมิน...
           </p>
         </div>
       </main>
     );
   }
 
-  if (!target && !isHeadquarters) {
+  /*
+   * =========================================================
+   * ไม่พบผู้ถูกประเมิน
+   * =========================================================
+   */
+
+  if (
+    !target &&
+    !isHeadquarters
+  ) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
@@ -798,6 +900,12 @@ export default function EvaluationPage() {
       </main>
     );
   }
+
+  /*
+   * =========================================================
+   * Main
+   * =========================================================
+   */
 
   return (
     <main className="min-h-screen bg-slate-100 pb-10 sm:pb-16">
@@ -931,21 +1039,21 @@ export default function EvaluationPage() {
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:grid-cols-5 sm:gap-3">
-  {scores.map((score) => (
-    <div
-      key={score.value}
-      className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center sm:p-4"
-    >
-      <div className="text-xl font-bold text-blue-600 sm:text-2xl">
-        {score.value}
-      </div>
+            {scores.map((score) => (
+              <div
+                key={score.value}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center sm:p-4"
+              >
+                <div className="text-xl font-bold text-blue-600 sm:text-2xl">
+                  {score.value}
+                </div>
 
-      <div className="mt-1 text-[11px] font-semibold leading-4 text-slate-600 sm:text-xs">
-        {score.label}
-      </div>
-    </div>
-  ))}
-</div>
+                <div className="mt-1 text-[11px] font-semibold leading-4 text-slate-600 sm:text-xs">
+                  {score.label}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <div className="mt-5 space-y-5 sm:mt-6 sm:space-y-6">
