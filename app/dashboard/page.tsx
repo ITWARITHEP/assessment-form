@@ -9,7 +9,6 @@ import {
   EvaluationTarget,
   getEvaluationTargets,
 } from "@/lib/permissions";
-import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const [evaluator, setEvaluator] =
@@ -19,118 +18,57 @@ export default function DashboardPage() {
     EvaluationTarget[]
   >([]);
 
-  const [completedTargetIds, setCompletedTargetIds] =
-    useState<Set<string>>(new Set());
-
-  const [loading, setLoading] = useState(true);
+  const [completedIds, setCompletedIds] =
+    useState<string[]>([]);
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        /*
-         * =====================================================
-         * ตรวจสอบผู้ใช้งาน
-         * =====================================================
-         *
-         * localStorage ใช้เก็บ "คนที่ล็อกอิน"
-         * เท่านั้น
-         *
-         * ไม่ใช้เก็บผลการประเมิน
-         */
-        const savedId =
-          localStorage.getItem(
-            "assessment_user"
-          );
+    const savedId =
+      localStorage.getItem("assessment_user");
 
-        if (!savedId) {
-          window.location.href = "/";
-          return;
-        }
-
-        const user = employees.find(
-          (employee) =>
-            employee.id === savedId
-        );
-
-        if (!user) {
-          localStorage.removeItem(
-            "assessment_user"
-          );
-
-          window.location.href = "/";
-          return;
-        }
-
-        /*
-         * =====================================================
-         * โหลดสิทธิ์ผู้ถูกประเมิน
-         * =====================================================
-         */
-        const evaluationTargets =
-          getEvaluationTargets(user);
-
-        setEvaluator(user);
-        setTargets(evaluationTargets);
-
-        /*
-         * =====================================================
-         * โหลดสถานะจาก Supabase
-         * =====================================================
-         *
-         * Supabase เป็นแหล่งข้อมูลจริงว่า
-         * ผู้ประเมินคนนี้ประเมินใครไปแล้ว
-         */
-        if (evaluationTargets.length > 0) {
-          const targetIds =
-            evaluationTargets.map(
-              (target) => target.id
-            );
-
-          const { data, error } =
-            await supabase
-              .from("assessment_results")
-              .select(
-                "target_id"
-              )
-              .eq(
-                "evaluator_id",
-                user.id
-              )
-              .in(
-                "target_id",
-                targetIds
-              );
-
-          if (error) {
-            console.error(
-              "โหลดสถานะการประเมินไม่สำเร็จ:",
-              error
-            );
-          } else {
-            const completedIds =
-              new Set<string>(
-                (data || []).map(
-                  (row) =>
-                    row.target_id
-                )
-              );
-
-            setCompletedTargetIds(
-              completedIds
-            );
-          }
-        }
-      } catch (error) {
-        console.error(
-          "โหลด Dashboard ไม่สำเร็จ:",
-          error
-        );
-      } finally {
-        setLoading(false);
-      }
+    if (!savedId) {
+      window.location.href = "/";
+      return;
     }
 
-    loadDashboard();
+    const user = employees.find(
+      (employee) => employee.id === savedId
+    );
+
+    if (!user) {
+      localStorage.removeItem(
+        "assessment_user"
+      );
+
+      window.location.href = "/";
+      return;
+    }
+
+    setEvaluator(user);
+
+    const evaluationTargets =
+      getEvaluationTargets(user);
+
+    setTargets(evaluationTargets);
+
+    // =====================================================
+    // ตรวจว่าผู้ประเมินคนนี้ประเมินใครไปแล้วบ้าง
+    // =====================================================
+
+    const completed: string[] = [];
+
+    evaluationTargets.forEach((target) => {
+      const key =
+        `assessment_result_${user.id}_${target.id}`;
+
+      const result =
+        localStorage.getItem(key);
+
+      if (result) {
+        completed.push(target.id);
+      }
+    });
+
+    setCompletedIds(completed);
   }, []);
 
   const getRoleIcon = (
@@ -198,46 +136,41 @@ export default function DashboardPage() {
   };
 
   const completedCount =
-    targets.filter((target) =>
-      completedTargetIds.has(
-        target.id
-      )
-    ).length;
+    completedIds.length;
 
   const pendingCount =
     targets.length - completedCount;
 
-  if (loading) {
+  if (!evaluator) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="rounded-3xl border border-slate-200 bg-white px-8 py-10 text-center shadow-xl">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="text-center text-slate-500">
+          <div className="mb-3 text-4xl">
+            ⏳
+          </div>
 
-          <p className="mt-4 font-semibold text-slate-700">
+          <div className="text-sm sm:text-base">
             กำลังโหลดระบบ...
-          </p>
+          </div>
         </div>
       </main>
     );
-  }
-
-  if (!evaluator) {
-    return null;
   }
 
   return (
     <main className="min-h-screen bg-slate-100">
       {/* =====================================================
           Header
-      ====================================================== */}
+      ===================================================== */}
+
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-bold text-slate-900 sm:text-2xl">
               Assessment Form
             </h1>
 
-            <p className="text-sm text-slate-500">
+            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
               ระบบประเมินพนักงาน
             </p>
           </div>
@@ -250,150 +183,84 @@ export default function DashboardPage() {
 
               window.location.href = "/";
             }}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+            className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-95 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             ออกจากระบบ
           </button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        {/* =====================================================
+      {/* =====================================================
+          Main Content
+      ===================================================== */}
+
+      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-8">
+        {/* ===================================================
             User information
-        ====================================================== */}
-        <section className="mb-8 rounded-3xl bg-gradient-to-r from-blue-600 to-blue-500 p-7 text-white shadow-xl shadow-blue-100">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-5">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/20 text-4xl backdrop-blur">
+        =================================================== */}
+
+        <section className="mb-5 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-lg shadow-blue-100 sm:mb-8 sm:rounded-3xl sm:p-7">
+          <div className="flex flex-col gap-4 sm:gap-5 md:flex-row md:items-center md:justify-between">
+            {/* User */}
+
+            <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl backdrop-blur sm:h-20 sm:w-20 sm:rounded-3xl sm:text-4xl">
                 {getRoleIcon(
                   evaluator.role
                 )}
               </div>
 
-              <div>
-                <p className="text-sm text-blue-100">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-blue-100 sm:text-sm">
                   ผู้ประเมิน
                 </p>
 
-                <h2 className="mt-0.5 text-[17px] font-bold leading-6 text-white sm:mt-1 sm:text-2xl sm:leading-7">
-  {evaluator.id.startsWith("exec-") ? (
-    <>
-      <span className="block">
-        {evaluator.name.split(" ").slice(0, -1).join(" ")}
-      </span>
-      <span className="block">
-        {evaluator.name.split(" ").slice(-1)}
-      </span>
-    </>
-  ) : (
-    <span className="break-words">
-      {evaluator.name}
-    </span>
-  )}
-</h2>
+                {/* ชื่อผู้ประเมิน — บรรทัดเดียว */}
+                <h2 className="mt-0.5 w-full max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-[17px] font-bold leading-6 sm:mt-1 sm:max-w-[420px] sm:text-2xl sm:leading-7">
+                  {evaluator.name}
+                </h2>
 
-                <p className="mt-1 text-xs leading-5 text-blue-100 sm:mt-1 sm:text-sm sm:leading-6">
-  {evaluator.id === "exec-002" && (
-    <>
-      <span className="block whitespace-nowrap">
-        รองประธานกรรมการบริหาร
-      </span>
-      <span className="block whitespace-nowrap">
-        ประธาน เขตอีสานใต้2
-      </span>
-    </>
-  )}
-
-  {evaluator.id === "exec-003" && (
-    <>
-      <span className="block whitespace-nowrap">
-        รองประธานกรรมการบริหาร
-      </span>
-      <span className="block whitespace-nowrap">
-        ประธาน เขตอีสานเหนือ
-      </span>
-    </>
-  )}
-
-  {evaluator.id === "exec-004" && (
-    <>
-      <span className="block whitespace-nowrap">
-        รองประธานกรรมการบริหาร
-      </span>
-      <span className="block whitespace-nowrap">
-        ประธาน เขตภาคกลาง
-      </span>
-    </>
-  )}
-
-  {evaluator.id === "exec-005" && (
-    <>
-      <span className="block whitespace-nowrap">
-        รองประธานกรรมการบริหาร
-      </span>
-      <span className="block whitespace-nowrap">
-        ประธาน เขตภาคเหนือ
-      </span>
-    </>
-  )}
-
-  {evaluator.id === "exec-006" && (
-    <>
-      <span className="block whitespace-nowrap">
-        รองประธานกรรมการบริหาร
-      </span>
-      <span className="block whitespace-nowrap">
-        ประธาน เขตอีสานใต้1
-      </span>
-    </>
-  )}
-
-  {!evaluator.id.startsWith("exec-") && (
-    <span className="block">
-      {evaluator.roleName}
-    </span>
-  )}
-</p>
+                <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-5 text-blue-100 sm:mt-1 sm:text-sm">
+                  {evaluator.roleName}
+                </p>
 
                 {evaluator.region && (
-                  <p className="mt-1 text-sm text-blue-100">
-                    เขต:{" "}
-                    {evaluator.region}
+                  <p className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap text-xs text-blue-100 sm:mt-1">
+                    เขต: {evaluator.region}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              {/* ทั้งหมด */}
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center backdrop-blur">
-                <div className="text-3xl font-bold">
+            {/* Statistics */}
+
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:gap-3">
+              <div className="rounded-xl bg-white/15 px-3 py-3 text-center backdrop-blur sm:min-w-[110px] sm:rounded-2xl sm:px-5 sm:py-4">
+                <div className="text-xl font-bold sm:text-3xl">
                   {targets.length}
                 </div>
 
-                <div className="text-sm text-blue-100">
+                <div className="mt-0.5 text-[10px] text-blue-100 sm:mt-1 sm:text-sm">
                   ทั้งหมด
                 </div>
               </div>
 
-              {/* ทำแล้ว */}
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center backdrop-blur">
-                <div className="text-3xl font-bold">
+              <div className="rounded-xl bg-emerald-500/30 px-3 py-3 text-center backdrop-blur sm:min-w-[110px] sm:rounded-2xl sm:px-5 sm:py-4">
+                <div className="text-xl font-bold sm:text-3xl">
                   {completedCount}
                 </div>
 
-                <div className="text-sm text-blue-100">
+                <div className="mt-0.5 text-[10px] text-blue-50 sm:mt-1 sm:text-sm">
                   ประเมินแล้ว
                 </div>
               </div>
 
-              {/* เหลือ */}
-              <div className="rounded-2xl bg-white/15 px-5 py-4 text-center backdrop-blur">
-                <div className="text-3xl font-bold">
+              <div className="rounded-xl bg-white/15 px-3 py-3 text-center backdrop-blur sm:min-w-[110px] sm:rounded-2xl sm:px-5 sm:py-4">
+                <div className="text-xl font-bold sm:text-3xl">
                   {pendingCount}
                 </div>
 
-                <div className="text-sm text-blue-100">
+                <div className="mt-0.5 text-[10px] text-blue-100 sm:mt-1 sm:text-sm">
                   คงเหลือ
                 </div>
               </div>
@@ -401,114 +268,131 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* =====================================================
+        {/* ===================================================
             Page title
-        ====================================================== */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">
+        =================================================== */}
+
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
             👥 ผู้ที่ฉันต้องประเมิน
           </h2>
 
-          <p className="mt-1 text-slate-500">
+          <p className="mt-1 text-xs text-slate-500 sm:text-sm">
             ระบบแสดงเฉพาะบุคคลที่คุณมีสิทธิ์ประเมิน
           </p>
         </div>
 
-        {/* =====================================================
+        {/* ===================================================
+            Progress
+        =================================================== */}
+
+        {targets.length > 0 && (
+          <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-3xl sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-slate-900 sm:text-base">
+                  📊 ความคืบหน้าการประเมิน
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                  ประเมินแล้ว{" "}
+                  {completedCount} จาก{" "}
+                  {targets.length} คน
+                </p>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <div className="text-lg font-bold text-blue-600 sm:text-xl">
+                  {Math.round(
+                    (completedCount /
+                      targets.length) *
+                      100
+                  )}
+                  %
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                style={{
+                  width: `${
+                    (completedCount /
+                      targets.length) *
+                    100
+                  }%`,
+                }}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* ===================================================
             Summary cards
-        ====================================================== */}
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        =================================================== */}
+
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <SummaryCard
             icon="🏢"
             title="ผู้อำนวยการฝ่าย"
-            count={
-              groupedTargets.director.length
-            }
+            count={groupedTargets.director.length}
           />
 
           <SummaryCard
             icon="🌎"
             title="ผู้จัดการเขต"
-            count={
-              groupedTargets.area_manager.length
-            }
+            count={groupedTargets.area_manager.length}
           />
 
           <SummaryCard
             icon="🏪"
             title="ผู้จัดการสาขา"
-            count={
-              groupedTargets.branch_manager.length
-            }
+            count={groupedTargets.branch_manager.length}
           />
 
           <SummaryCard
             icon="🏛️"
             title="สำนักงานใหญ่"
-            count={
-              groupedTargets.headquarters.length
-            }
+            count={groupedTargets.headquarters.length}
           />
         </div>
 
-        {/* =====================================================
+        {/* ===================================================
             Targets
-        ====================================================== */}
-        <div className="space-y-8">
+        =================================================== */}
+
+        <div className="space-y-6 sm:space-y-8">
           <TargetSection
             title="🏢 ผู้อำนวยการฝ่าย"
             subtitle="รายชื่อผู้อำนวยการฝ่ายที่สามารถประเมินได้"
-            targets={
-              groupedTargets.director
-            }
-            getCategoryName={
-              getCategoryName
-            }
-            completedTargetIds={
-              completedTargetIds
-            }
+            targets={groupedTargets.director}
+            getCategoryName={getCategoryName}
+            completedIds={completedIds}
           />
 
           <TargetSection
             title="🌎 ผู้จัดการเขต"
             subtitle="ผู้จัดการเขตที่อยู่ในสิทธิ์การประเมิน"
-            targets={
-              groupedTargets.area_manager
-            }
-            getCategoryName={
-              getCategoryName
-            }
-            completedTargetIds={
-              completedTargetIds
-            }
+            targets={groupedTargets.area_manager}
+            getCategoryName={getCategoryName}
+            completedIds={completedIds}
           />
 
           <TargetSection
             title="🏪 ผู้จัดการสาขา"
             subtitle="ผู้จัดการสาขาที่อยู่ในเขตที่รับผิดชอบ"
-            targets={
-              groupedTargets.branch_manager
-            }
-            getCategoryName={
-              getCategoryName
-            }
-            completedTargetIds={
-              completedTargetIds
-            }
+            targets={groupedTargets.branch_manager}
+            getCategoryName={getCategoryName}
+            completedIds={completedIds}
           />
 
           <TargetSection
             title="🏛️ ฝ่ายสำนักงานใหญ่"
             subtitle="ฝ่ายสำนักงานใหญ่ที่สามารถประเมินได้"
-            targets={
-              groupedTargets.headquarters
-            }
-            getCategoryName={
-              getCategoryName
-            }
-            completedTargetIds={
-              completedTargetIds
-            }
+            targets={groupedTargets.headquarters}
+            getCategoryName={getCategoryName}
+            completedIds={completedIds}
           />
         </div>
       </div>
@@ -516,9 +400,9 @@ export default function DashboardPage() {
   );
 }
 
-/* ============================================================
+/* =========================================================
    Summary Card
-============================================================ */
+========================================================= */
 
 function SummaryCard({
   icon,
@@ -530,38 +414,38 @@ function SummaryCard({
   count: number;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className="text-3xl">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-2xl sm:text-3xl">
           {icon}
         </div>
 
-        <div className="text-3xl font-bold text-slate-900">
+        <div className="text-2xl font-bold text-slate-900 sm:text-3xl">
           {count}
         </div>
       </div>
 
-      <p className="mt-4 font-semibold text-slate-800">
+      <p className="mt-3 text-xs font-semibold leading-5 text-slate-800 sm:mt-4 sm:text-sm">
         {title}
       </p>
 
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-0.5 text-[11px] text-slate-500 sm:mt-1 sm:text-sm">
         รายการ
       </p>
     </div>
   );
 }
 
-/* ============================================================
+/* =========================================================
    Target Section
-============================================================ */
+========================================================= */
 
 function TargetSection({
   title,
   subtitle,
   targets,
   getCategoryName,
-  completedTargetIds,
+  completedIds,
 }: {
   title: string;
   subtitle: string;
@@ -569,7 +453,7 @@ function TargetSection({
   getCategoryName: (
     category: EvaluationTarget["category"]
   ) => string;
-  completedTargetIds: Set<string>;
+  completedIds: string[];
 }) {
   if (targets.length === 0) {
     return null;
@@ -577,36 +461,44 @@ function TargetSection({
 
   return (
     <section>
-      <div className="mb-4">
-        <h3 className="text-xl font-bold text-slate-900">
+      {/* Section Header */}
+
+      <div className="mb-3 sm:mb-4">
+        <h3 className="text-lg font-bold text-slate-900 sm:text-xl">
           {title}
         </h3>
 
-        <p className="text-sm text-slate-500">
+        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
           {subtitle}
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Target Cards */}
+
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {targets.map((target) => {
-          const isCompleted =
-            completedTargetIds.has(
+          const completed =
+            completedIds.includes(
               target.id
             );
 
           return (
             <div
               key={target.id}
-              className={`group rounded-2xl border bg-white p-5 shadow-sm transition hover:-translate-y-1 ${
-                isCompleted
+              className={`group rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:rounded-2xl sm:p-5 ${
+                completed
                   ? "border-emerald-200"
-                  : "border-slate-200 hover:border-blue-300 hover:shadow-lg"
+                  : "border-slate-200 hover:border-blue-300"
               }`}
             >
-              <div className="flex items-start gap-4">
+              {/* Person */}
+
+              <div className="flex items-start gap-3 sm:gap-4">
+                {/* Icon */}
+
                 <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${
-                    isCompleted
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${
+                    completed
                       ? "bg-emerald-50"
                       : "bg-blue-50"
                   }`}
@@ -628,20 +520,14 @@ function TargetSection({
                     "🏪"}
                 </div>
 
+                {/* Information */}
+
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-bold leading-6 text-slate-900">
-                      {target.name}
-                    </h4>
+                  <h4 className="break-words text-sm font-bold leading-6 text-slate-900 sm:text-base">
+                    {target.name}
+                  </h4>
 
-                    {isCompleted && (
-                      <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                        ✓ ประเมินแล้ว
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-1 text-sm text-blue-600">
+                  <p className="mt-0.5 text-xs font-semibold text-blue-600 sm:mt-1 sm:text-sm">
                     {getCategoryName(
                       target.category
                     )}
@@ -649,40 +535,54 @@ function TargetSection({
 
                   {target.roleName !==
                     "ฝ่ายสำนักงานใหญ่" && (
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-0.5 break-words text-xs text-slate-500 sm:mt-1 sm:text-sm">
                       {target.roleName}
                     </p>
                   )}
 
                   {target.branch && (
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-0.5 break-words text-xs text-slate-500 sm:mt-1 sm:text-sm">
                       📍 {target.branch}
                     </p>
                   )}
 
                   {target.region && (
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-0.5 text-[11px] text-slate-400 sm:mt-1 sm:text-xs">
                       เขต {target.region}
                     </p>
                   )}
                 </div>
               </div>
 
-              {isCompleted ? (
-                <div className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700">
-                  ✓ คุณประเมินบุคคลนี้เรียบร้อยแล้ว
+              {/* Status */}
+
+              {completed && (
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 sm:mt-4 sm:text-sm">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-white">
+                    ✓
+                  </span>
+
+                  เราประเมินคนนี้แล้ว
                 </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    window.location.href =
-                      `/evaluate/${target.id}`;
-                  }}
-                  className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700"
-                >
-                  ประเมินบุคคลนี้ →
-                </button>
               )}
+
+              {/* Button */}
+
+              <button
+                onClick={() => {
+                  window.location.href =
+                    `/evaluate/${target.id}`;
+                }}
+                className={`mt-3 min-h-12 w-full rounded-xl px-4 py-3 text-sm font-bold text-white transition active:scale-[0.98] sm:mt-4 sm:text-base ${
+                  completed
+                    ? "bg-slate-700 hover:bg-slate-800"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {completed
+                  ? "✏️ แก้ไขการประเมิน"
+                  : "📝 ประเมินบุคคลนี้ →"}
+              </button>
             </div>
           );
         })}
