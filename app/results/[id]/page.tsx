@@ -300,30 +300,18 @@ const scoreLabels: Record<number, string> = {
   5: "ดีมาก",
 };
 
-/*
- * =========================================================
- * Result Types
- * =========================================================
- */
-
 type AssessmentResult = {
   evaluatorId: string;
   evaluatorName: string;
   evaluatorRole: string;
-
   targetId: string;
   targetName: string;
   targetRole: string;
-
   formType: string;
-
   answers: Record<string, number>;
-
   totalScore: number;
   maxScore: number;
-
   suggestion: string;
-
   submittedAt: string;
 };
 
@@ -339,20 +327,14 @@ type SupabaseAssessmentRow = {
   evaluator_id: string;
   evaluator_name: string;
   evaluator_role: string;
-
   target_id: string;
   target_name: string;
   target_role: string;
-
   form_type: string;
-
   answers: Record<string, number>;
-
   total_score: number;
   max_score: number;
-
   suggestion: string;
-
   submitted_at: string;
   created_at: string;
 };
@@ -378,12 +360,6 @@ export default function ResultsPage({
 
         setTargetId(id);
 
-        /*
-         * =====================================================
-         * ADMIN ONLY
-         * =====================================================
-         */
-
         const adminAccess = sessionStorage.getItem(
           "assessment_admin_access"
         );
@@ -392,12 +368,6 @@ export default function ResultsPage({
           window.location.href = "/dashboard";
           return;
         }
-
-        /*
-         * =====================================================
-         * หาข้อมูลผู้ถูกประเมิน
-         * =====================================================
-         */
 
         const employeeTarget = employees.find(
           (employee) => employee.id === id
@@ -417,19 +387,7 @@ export default function ResultsPage({
           }
         }
 
-        /*
-         * =====================================================
-         * ผู้มีสิทธิ์ประเมินบุคคลนี้
-         * =====================================================
-         */
-
         const evaluators = getEvaluationEvaluators(id);
-
-        /*
-         * =====================================================
-         * โหลดผลจาก SUPABASE เท่านั้น
-         * =====================================================
-         */
 
         let supabaseRows: SupabaseAssessmentRow[] = [];
 
@@ -447,12 +405,6 @@ export default function ResultsPage({
           supabaseRows =
             (data as SupabaseAssessmentRow[]) || [];
         }
-
-        /*
-         * =====================================================
-         * สร้างผลของผู้ประเมินแต่ละคน
-         * =====================================================
-         */
 
         const evaluatorResults: EvaluatorResult[] =
           evaluators.map((evaluator) => {
@@ -475,41 +427,30 @@ export default function ResultsPage({
             const result: AssessmentResult = {
               evaluatorId:
                 supabaseResult.evaluator_id,
-
               evaluatorName:
                 supabaseResult.evaluator_name,
-
               evaluatorRole:
                 supabaseResult.evaluator_role,
-
               targetId:
                 supabaseResult.target_id,
-
               targetName:
                 supabaseResult.target_name,
-
               targetRole:
                 supabaseResult.target_role,
-
               formType:
                 supabaseResult.form_type,
-
               answers:
                 supabaseResult.answers || {},
-
               totalScore:
                 Number(
                   supabaseResult.total_score
                 ) || 0,
-
               maxScore:
                 Number(
                   supabaseResult.max_score
                 ) || 0,
-
               suggestion:
                 supabaseResult.suggestion || "",
-
               submittedAt:
                 supabaseResult.submitted_at ||
                 supabaseResult.created_at,
@@ -537,12 +478,6 @@ export default function ResultsPage({
     loadPage();
   }, [params]);
 
-  /*
-   * =========================================================
-   * จำนวนคนที่ประเมินเสร็จ
-   * =========================================================
-   */
-
   const completedCount = useMemo(() => {
     return results.filter(
       (item) => item.result !== null
@@ -551,24 +486,12 @@ export default function ResultsPage({
 
   const totalEvaluators = results.length;
 
-  /*
-   * =========================================================
-   * Progress
-   * =========================================================
-   */
-
   const progressPercent =
     totalEvaluators > 0
       ? Math.round(
           (completedCount / totalEvaluators) * 100
         )
       : 0;
-
-  /*
-   * =========================================================
-   * คะแนนเฉลี่ย
-   * =========================================================
-   */
 
   const averagePercent = useMemo(() => {
     const completedResults = results
@@ -607,22 +530,10 @@ export default function ResultsPage({
     );
   }, [results]);
 
-  /*
-   * =========================================================
-   * Export Excel
-   * =========================================================
-   */
-
   const exportExcel = () => {
     if (!targetId) {
       return;
     }
-
-    /*
-     * -------------------------------------------------------
-     * Sheet 1 : ผลการประเมิน
-     * -------------------------------------------------------
-     */
 
     const rows = results.map((item) => {
       if (!item.result) {
@@ -652,29 +563,22 @@ export default function ResultsPage({
       return {
         "ผู้ประเมิน":
           result.evaluatorName,
-
         "ตำแหน่ง":
           result.evaluatorRole,
-
         "สถานะ":
           "ประเมินแล้ว",
-
         "คะแนน":
           result.totalScore,
-
         "คะแนนเต็ม":
           result.maxScore,
-
         "เปอร์เซ็นต์":
           `${percent}%`,
-
         "วันที่ประเมิน":
           result.submittedAt
             ? new Date(
                 result.submittedAt
               ).toLocaleString("th-TH")
             : "",
-
         "ข้อเสนอแนะ":
           result.suggestion || "",
       };
@@ -693,12 +597,6 @@ export default function ResultsPage({
       { wch: 25 },
       { wch: 45 },
     ];
-
-    /*
-     * -------------------------------------------------------
-     * Sheet 2 : สรุป
-     * -------------------------------------------------------
-     */
 
     const summaryRows = [
       ["ผลการประเมินพนักงาน"],
@@ -726,12 +624,6 @@ export default function ResultsPage({
       { wch: 45 },
     ];
 
-    /*
-     * -------------------------------------------------------
-     * Sheet 3 : คะแนนรายข้อ
-     * -------------------------------------------------------
-     */
-
     const questionRows: Array<{
       "ผู้ประเมิน": string;
       "ตำแหน่ง": string;
@@ -743,9 +635,6 @@ export default function ResultsPage({
     }> = [];
 
     results.forEach((item) => {
-      /*
-       * ยังไม่ได้ประเมิน
-       */
       if (!item.result) {
         questionRows.push({
           "ผู้ประเมิน": item.name,
@@ -762,9 +651,6 @@ export default function ResultsPage({
 
       const result = item.result;
 
-      /*
-       * เลือกชุดคำถามให้ตรงกับแบบประเมิน
-       */
       let questionSet: QuestionSection[];
 
       switch (result.formType) {
@@ -786,9 +672,6 @@ export default function ResultsPage({
           break;
       }
 
-      /*
-       * แตกคำถามทีละหมวด
-       */
       questionSet.forEach((section) => {
         section.items.forEach((question) => {
           const score =
@@ -798,25 +681,19 @@ export default function ResultsPage({
             "ผู้ประเมิน":
               result.evaluatorName ||
               item.name,
-
             "ตำแหน่ง":
               result.evaluatorRole ||
               item.roleName,
-
             "หมวด":
               section.section,
-
             "ข้อ":
               question.id,
-
             "คำถาม":
               question.text,
-
             "คะแนน":
               typeof score === "number"
                 ? score
                 : "-",
-
             "ระดับ":
               typeof score === "number"
                 ? scoreLabels[score] || "-"
@@ -841,12 +718,6 @@ export default function ResultsPage({
       { wch: 18 },
     ];
 
-    /*
-     * -------------------------------------------------------
-     * สร้าง Workbook
-     * -------------------------------------------------------
-     */
-
     const workbook =
       XLSX.utils.book_new();
 
@@ -868,12 +739,6 @@ export default function ResultsPage({
       "คะแนนรายข้อ"
     );
 
-    /*
-     * -------------------------------------------------------
-     * ดาวน์โหลดเป็น Excel จริง
-     * -------------------------------------------------------
-     */
-
     const safeName =
       targetName
         .replace(/[\\/:*?"<>|]/g, "")
@@ -884,12 +749,6 @@ export default function ResultsPage({
       `ผลการประเมิน_${safeName}.xlsx`
     );
   };
-
-  /*
-   * =========================================================
-   * Loading
-   * =========================================================
-   */
 
   if (loading) {
     return (
@@ -905,16 +764,8 @@ export default function ResultsPage({
     );
   }
 
-  /*
-   * =========================================================
-   * Main
-   * =========================================================
-   */
-
   return (
     <main className="min-h-screen bg-slate-100 pb-10 sm:pb-16">
-      {/* HEADER */}
-
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-5">
           <div className="min-w-0">
@@ -944,8 +795,6 @@ export default function ResultsPage({
 
         <section className="mb-4 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-3 text-white shadow-lg shadow-blue-100 sm:mb-6 sm:rounded-3xl sm:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-5">
-            {/* ชื่อผู้ถูกประเมิน */}
-
             <div className="min-w-0">
               <p className="text-[10px] text-blue-100 sm:text-sm">
                 ผู้ถูกประเมิน
@@ -957,15 +806,11 @@ export default function ResultsPage({
               </h2>
 
               <p className="mt-1 max-w-[260px] whitespace-pre-line text-xs font-medium leading-5 text-blue-100 sm:mt-2 sm:max-w-none sm:text-base sm:leading-6">
-  {targetRole || "-"}
-</p>
+                {targetRole || "-"}
+              </p>
             </div>
 
-            {/* สถิติ */}
-
             <div className="grid grid-cols-2 gap-2 sm:gap-3 md:min-w-[300px]">
-              {/* ผู้ประเมิน */}
-
               <div className="rounded-xl bg-white/15 px-2 py-2.5 text-center backdrop-blur sm:rounded-2xl sm:px-6 sm:py-4">
                 <div className="text-xl font-bold leading-none sm:text-3xl">
                   {completedCount}
@@ -980,8 +825,6 @@ export default function ResultsPage({
                   ผู้ประเมิน
                 </div>
               </div>
-
-              {/* คะแนนเฉลี่ย */}
 
               <div className="rounded-xl bg-white/15 px-2 py-2.5 text-center backdrop-blur sm:rounded-2xl sm:px-6 sm:py-4">
                 <div className="text-xl font-bold leading-none sm:text-3xl">
@@ -1094,44 +937,75 @@ export default function ResultsPage({
                       {item.name}
                     </h3>
 
+                    {/* ตำแหน่งผู้ประเมิน */}
+
                     <p className="mt-1 text-sm leading-5 text-blue-600">
-  {item.roleName.includes("\n") ? (
-    item.roleName.split(/\r?\n/).map((line, index) => (
-      <span
-        key={index}
-        className="block whitespace-nowrap"
-      >
-        {line.trim()}
-      </span>
-    ))
-  ) : item.roleName.includes("ประธานเขต") ? (
-    <>
-      <span className="block whitespace-nowrap">
-        รองประธานกรรมการบริหาร
-      </span>
-      <span className="block whitespace-nowrap">
-        {item.roleName.replace(
-          "รองประธานกรรมการบริหาร",
-          ""
-        ).trim().replace(
-          "ประธานเขต",
-          "ประธาน เขต"
-        )}
-      </span>
-    </>
-  ) : (
-    <span className="block">
-      {item.roleName}
-    </span>
-  )}
-</p>
+                      {item.id === "exec-002" && (
+                        <>
+                          <span className="block whitespace-nowrap">
+                            รองประธานกรรมการบริหาร
+                          </span>
+                          <span className="block whitespace-nowrap">
+                            ประธาน เขตอีสานใต้2
+                          </span>
+                        </>
+                      )}
+
+                      {item.id === "exec-003" && (
+                        <>
+                          <span className="block whitespace-nowrap">
+                            รองประธานกรรมการบริหาร
+                          </span>
+                          <span className="block whitespace-nowrap">
+                            ประธาน เขตอีสานเหนือ
+                          </span>
+                        </>
+                      )}
+
+                      {item.id === "exec-004" && (
+                        <>
+                          <span className="block whitespace-nowrap">
+                            รองประธานกรรมการบริหาร
+                          </span>
+                          <span className="block whitespace-nowrap">
+                            ประธาน เขตภาคกลาง
+                          </span>
+                        </>
+                      )}
+
+                      {item.id === "exec-005" && (
+                        <>
+                          <span className="block whitespace-nowrap">
+                            รองประธานกรรมการบริหาร
+                          </span>
+                          <span className="block whitespace-nowrap">
+                            ประธาน เขตภาคเหนือ
+                          </span>
+                        </>
+                      )}
+
+                      {item.id === "exec-006" && (
+                        <>
+                          <span className="block whitespace-nowrap">
+                            รองประธานกรรมการบริหาร
+                          </span>
+                          <span className="block whitespace-nowrap">
+                            ประธาน เขตอีสานใต้1
+                          </span>
+                        </>
+                      )}
+
+                      {!item.id.startsWith("exec-") && (
+                        <span className="block">
+                          {item.roleName}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
 
                 {result ? (
                   <>
-                    {/* คะแนน */}
-
                     <div className="mt-4 rounded-2xl bg-slate-50 p-4 sm:mt-5">
                       <div className="flex items-end justify-between gap-3">
                         <div>
@@ -1162,8 +1036,6 @@ export default function ResultsPage({
                       </div>
                     </div>
 
-                    {/* สถานะ */}
-
                     <div className="mt-3 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                       <span>
                         ✅ ประเมินแล้ว
@@ -1180,8 +1052,6 @@ export default function ResultsPage({
                       </span>
                     </div>
 
-                    {/* ดูรายข้อ */}
-
                     <button
                       onClick={() => {
                         window.location.href =
@@ -1194,8 +1064,6 @@ export default function ResultsPage({
                   </>
                 ) : (
                   <>
-                    {/* ยังไม่ประเมิน */}
-
                     <div className="mt-4 rounded-2xl bg-slate-50 p-5 text-center sm:mt-5">
                       <div className="text-3xl">
                         ⏳
@@ -1219,8 +1087,6 @@ export default function ResultsPage({
             );
           })}
         </div>
-
-        {/* EMPTY */}
 
         {results.length === 0 && (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12">
