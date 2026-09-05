@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Employee,
   employees,
@@ -9,6 +9,7 @@ import {
   EvaluationTarget,
   getEvaluationTargets,
 } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const [evaluator, setEvaluator] =
@@ -21,9 +22,93 @@ export default function DashboardPage() {
   const [completedIds, setCompletedIds] =
     useState<string[]>([]);
 
+  const [loadingResults, setLoadingResults] =
+    useState(true);
+
+  /*
+   * =====================================================
+   * โหลดว่าผู้ประเมินคนนี้ประเมินใครไปแล้ว
+   *
+   * อ่านจาก Supabase เป็นหลัก
+   * =====================================================
+   */
+  const loadCompletedResults = useCallback(
+    async (user: Employee, evaluationTargets: EvaluationTarget[]) => {
+      setLoadingResults(true);
+
+      /*
+       * -------------------------------------------------
+       * 1. โหลดจาก Supabase
+       * -------------------------------------------------
+       */
+      const { data, error } = await supabase
+        .from("assessment_results")
+        .select("target_id")
+        .eq("evaluator_id", user.id);
+
+      if (!error && data) {
+        const completedFromSupabase = data
+          .map((row) => row.target_id)
+          .filter((id): id is string => Boolean(id));
+
+        setCompletedIds(
+          Array.from(
+            new Set(completedFromSupabase)
+          )
+        );
+
+        setLoadingResults(false);
+        return;
+      }
+
+      /*
+       * -------------------------------------------------
+       * 2. ถ้า Supabase มีปัญหา
+       *    ใช้ LocalStorage เป็นตัวสำรอง
+       * -------------------------------------------------
+       */
+      console.error(
+        "โหลดผลประเมินจาก Supabase ไม่สำเร็จ:",
+        error
+      );
+
+      const completedFromLocal: string[] = [];
+
+      evaluationTargets.forEach((target) => {
+        const key =
+          `assessment_result_${user.id}_${target.id}`;
+
+        const result =
+          localStorage.getItem(key);
+
+        if (result) {
+          completedFromLocal.push(
+            target.id
+          );
+        }
+      });
+
+      setCompletedIds(
+        Array.from(
+          new Set(completedFromLocal)
+        )
+      );
+
+      setLoadingResults(false);
+    },
+    []
+  );
+
+  /*
+   * =====================================================
+   * โหลดข้อมูลผู้ประเมิน
+   * =====================================================
+   */
   useEffect(() => {
     const savedId =
-      localStorage.getItem("assessment_user");
+      localStorage.getItem(
+        "assessment_user"
+      );
 
     if (!savedId) {
       window.location.href = "/";
@@ -31,7 +116,8 @@ export default function DashboardPage() {
     }
 
     const user = employees.find(
-      (employee) => employee.id === savedId
+      (employee) =>
+        employee.id === savedId
     );
 
     if (!user) {
@@ -50,27 +136,70 @@ export default function DashboardPage() {
 
     setTargets(evaluationTargets);
 
-    // =====================================================
-    // ตรวจว่าผู้ประเมินคนนี้ประเมินใครไปแล้วบ้าง
-    // =====================================================
+    /*
+     * โหลดสถานะการประเมินจาก Supabase
+     */
+    loadCompletedResults(
+      user,
+      evaluationTargets
+    );
 
-    const completed: string[] = [];
+    /*
+     * =================================================
+     * เมื่อกลับเข้าหน้า Dashboard
+     * ให้โหลดใหม่อีกครั้ง
+     *
+     * รองรับกรณีประเมินเสร็จจากมือถือแล้ว
+     * กลับมาหน้า Dashboard
+     * =================================================
+     */
+    const handleFocus = () => {
+      loadCompletedResults(
+        user,
+        evaluationTargets
+      );
+    };
 
-    evaluationTargets.forEach((target) => {
-      const key =
-        `assessment_result_${user.id}_${target.id}`;
+    window.addEventListener(
+      "focus",
+      handleFocus
+    );
 
-      const result =
-        localStorage.getItem(key);
-
-      if (result) {
-        completed.push(target.id);
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState ===
+        "visible"
+      ) {
+        loadCompletedResults(
+          user,
+          evaluationTargets
+        );
       }
-    });
+    };
 
-    setCompletedIds(completed);
-  }, []);
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
 
+    return () => {
+      window.removeEventListener(
+        "focus",
+        handleFocus
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+    };
+  }, [loadCompletedResults]);
+
+  /*
+   * =====================================================
+   * Role Icon
+   * =====================================================
+   */
   const getRoleIcon = (
     role: Employee["role"]
   ) => {
@@ -92,6 +221,11 @@ export default function DashboardPage() {
     }
   };
 
+  /*
+   * =====================================================
+   * Category Name
+   * =====================================================
+   */
   const getCategoryName = (
     category: EvaluationTarget["category"]
   ) => {
@@ -113,6 +247,11 @@ export default function DashboardPage() {
     }
   };
 
+  /*
+   * =====================================================
+   * Group Targets
+   * =====================================================
+   */
   const groupedTargets = {
     director: targets.filter(
       (target) =>
@@ -126,20 +265,30 @@ export default function DashboardPage() {
 
     branch_manager: targets.filter(
       (target) =>
-        target.category === "branch_manager"
+        target.category ===
+        "branch_manager"
     ),
 
     headquarters: targets.filter(
       (target) =>
-        target.category === "headquarters"
+        target.category ===
+        "headquarters"
     ),
   };
 
+  /*
+   * =====================================================
+   * Summary
+   * =====================================================
+   */
   const completedCount =
     completedIds.length;
 
-  const pendingCount =
-    targets.length - completedCount;
+  const pendingCount = Math.max(
+    targets.length -
+      completedCount,
+    0
+  );
 
   if (!evaluator) {
     return (
@@ -157,12 +306,16 @@ export default function DashboardPage() {
     );
   }
 
+  /*
+   * =====================================================
+   * Dashboard
+   * =====================================================
+   */
   return (
     <main className="min-h-screen bg-slate-100">
       {/* =====================================================
           Header
       ===================================================== */}
-
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
@@ -191,18 +344,17 @@ export default function DashboardPage() {
       </header>
 
       {/* =====================================================
-          Main Content
+          Main
       ===================================================== */}
-
       <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-8">
-        {/* ===================================================
-            User information
-        =================================================== */}
 
+        {/* ===================================================
+            User Information
+        =================================================== */}
         <section className="mb-5 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-lg shadow-blue-100 sm:mb-8 sm:rounded-3xl sm:p-7">
           <div className="flex flex-col gap-4 sm:gap-5 md:flex-row md:items-center md:justify-between">
-            {/* User */}
 
+            {/* User */}
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl backdrop-blur sm:h-20 sm:w-20 sm:rounded-3xl sm:text-4xl">
                 {getRoleIcon(
@@ -215,12 +367,12 @@ export default function DashboardPage() {
                   ผู้ประเมิน
                 </p>
 
-                {/* ชื่อผู้ประเมิน — บรรทัดเดียว */}
+                {/* ชื่อบังคับให้อยู่บรรทัดเดียว */}
                 <h2 className="mt-0.5 w-full max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-[17px] font-bold leading-6 sm:mt-1 sm:max-w-[420px] sm:text-2xl sm:leading-7">
                   {evaluator.name}
                 </h2>
 
-                <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-5 text-blue-100 sm:mt-1 sm:text-sm">
+                <p className="mt-0.5 w-full max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap text-xs text-blue-100 sm:mt-1 sm:max-w-[480px] sm:text-sm">
                   {evaluator.roleName}
                 </p>
 
@@ -233,7 +385,6 @@ export default function DashboardPage() {
             </div>
 
             {/* Statistics */}
-
             <div className="grid grid-cols-3 gap-2 sm:flex sm:gap-3">
               <div className="rounded-xl bg-white/15 px-3 py-3 text-center backdrop-blur sm:min-w-[110px] sm:rounded-2xl sm:px-5 sm:py-4">
                 <div className="text-xl font-bold sm:text-3xl">
@@ -269,9 +420,8 @@ export default function DashboardPage() {
         </section>
 
         {/* ===================================================
-            Page title
+            Page Title
         =================================================== */}
-
         <div className="mb-4 sm:mb-6">
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
             👥 ผู้ที่ฉันต้องประเมิน
@@ -285,7 +435,6 @@ export default function DashboardPage() {
         {/* ===================================================
             Progress
         =================================================== */}
-
         {targets.length > 0 && (
           <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-3xl sm:p-5">
             <div className="flex items-center justify-between gap-3">
@@ -296,8 +445,10 @@ export default function DashboardPage() {
 
                 <p className="mt-1 text-xs text-slate-500 sm:text-sm">
                   ประเมินแล้ว{" "}
-                  {completedCount} จาก{" "}
-                  {targets.length} คน
+                  {completedCount}{" "}
+                  จาก{" "}
+                  {targets.length}{" "}
+                  คน
                 </p>
               </div>
 
@@ -329,70 +480,100 @@ export default function DashboardPage() {
         )}
 
         {/* ===================================================
-            Summary cards
+            Summary Cards
         =================================================== */}
-
         <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <SummaryCard
             icon="🏢"
             title="ผู้อำนวยการฝ่าย"
-            count={groupedTargets.director.length}
+            count={
+              groupedTargets.director.length
+            }
           />
 
           <SummaryCard
             icon="🌎"
             title="ผู้จัดการเขต"
-            count={groupedTargets.area_manager.length}
+            count={
+              groupedTargets.area_manager.length
+            }
           />
 
           <SummaryCard
             icon="🏪"
             title="ผู้จัดการสาขา"
-            count={groupedTargets.branch_manager.length}
+            count={
+              groupedTargets.branch_manager.length
+            }
           />
 
           <SummaryCard
             icon="🏛️"
             title="สำนักงานใหญ่"
-            count={groupedTargets.headquarters.length}
+            count={
+              groupedTargets.headquarters.length
+            }
           />
         </div>
 
         {/* ===================================================
             Targets
         =================================================== */}
-
         <div className="space-y-6 sm:space-y-8">
           <TargetSection
             title="🏢 ผู้อำนวยการฝ่าย"
             subtitle="รายชื่อผู้อำนวยการฝ่ายที่สามารถประเมินได้"
-            targets={groupedTargets.director}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.director
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
 
           <TargetSection
             title="🌎 ผู้จัดการเขต"
             subtitle="ผู้จัดการเขตที่อยู่ในสิทธิ์การประเมิน"
-            targets={groupedTargets.area_manager}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.area_manager
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
 
           <TargetSection
             title="🏪 ผู้จัดการสาขา"
             subtitle="ผู้จัดการสาขาที่อยู่ในเขตที่รับผิดชอบ"
-            targets={groupedTargets.branch_manager}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.branch_manager
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
 
           <TargetSection
             title="🏛️ ฝ่ายสำนักงานใหญ่"
             subtitle="ฝ่ายสำนักงานใหญ่ที่สามารถประเมินได้"
-            targets={groupedTargets.headquarters}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.headquarters
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
         </div>
       </div>
@@ -462,7 +643,6 @@ function TargetSection({
   return (
     <section>
       {/* Section Header */}
-
       <div className="mb-3 sm:mb-4">
         <h3 className="text-lg font-bold text-slate-900 sm:text-xl">
           {title}
@@ -474,7 +654,6 @@ function TargetSection({
       </div>
 
       {/* Target Cards */}
-
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {targets.map((target) => {
           const completed =
@@ -492,10 +671,9 @@ function TargetSection({
               }`}
             >
               {/* Person */}
-
               <div className="flex items-start gap-3 sm:gap-4">
-                {/* Icon */}
 
+                {/* Icon */}
                 <div
                   className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${
                     completed
@@ -521,7 +699,6 @@ function TargetSection({
                 </div>
 
                 {/* Information */}
-
                 <div className="min-w-0 flex-1">
                   <h4 className="break-words text-sm font-bold leading-6 text-slate-900 sm:text-base">
                     {target.name}
@@ -555,7 +732,6 @@ function TargetSection({
               </div>
 
               {/* Status */}
-
               {completed && (
                 <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 sm:mt-4 sm:text-sm">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-white">
@@ -567,7 +743,6 @@ function TargetSection({
               )}
 
               {/* Button */}
-
               <button
                 onClick={() => {
                   window.location.href =
