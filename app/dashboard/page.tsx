@@ -279,9 +279,68 @@ export default function DashboardPage() {
                   {evaluator.name}
                 </h2>
 
-                <p className="mt-1 text-blue-100">
-                  {evaluator.roleName}
-                </p>
+                <p className="mt-1 text-xs leading-5 text-blue-100 sm:mt-1 sm:text-sm sm:leading-6">
+  {evaluator.id === "exec-002" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตอีสานใต้2
+      </span>
+    </>
+  )}
+
+  {evaluator.id === "exec-003" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตอีสานเหนือ
+      </span>
+    </>
+  )}
+
+  {evaluator.id === "exec-004" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตภาคกลาง
+      </span>
+    </>
+  )}
+
+  {evaluator.id === "exec-005" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตภาคเหนือ
+      </span>
+    </>
+  )}
+
+  {evaluator.id === "exec-006" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตอีสานใต้1
+      </span>
+    </>
+  )}
+
+  {!evaluator.id.startsWith("exec-") && (
+    <span className="block">
+      {evaluator.roleName}
+    </span>
+  )}
+</p>
 
                 {evaluator.region && (
                   <p className="mt-1 text-sm text-blue-100">
