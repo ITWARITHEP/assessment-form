@@ -939,68 +939,74 @@ export default function ResultsPage({
 
                     {/* ตำแหน่งผู้ประเมิน */}
 
-                    <p className="mt-1 text-sm leading-5 text-blue-600">
-                      {item.id === "exec-002" && (
-                        <>
-                          <span className="block whitespace-nowrap">
-                            รองประธานกรรมการบริหาร
-                          </span>
-                          <span className="block whitespace-nowrap">
-                            ประธาน เขตอีสานใต้2
-                          </span>
-                        </>
-                      )}
+<p className="mt-1 text-sm leading-5 text-blue-600">
+  {item.id === "exec-001" && (
+    <span className="block whitespace-nowrap">
+      ประธานกรรมการบริหาร
+    </span>
+  )}
 
-                      {item.id === "exec-003" && (
-                        <>
-                          <span className="block whitespace-nowrap">
-                            รองประธานกรรมการบริหาร
-                          </span>
-                          <span className="block whitespace-nowrap">
-                            ประธาน เขตอีสานเหนือ
-                          </span>
-                        </>
-                      )}
+  {item.id === "exec-002" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตอีสานใต้2
+      </span>
+    </>
+  )}
 
-                      {item.id === "exec-004" && (
-                        <>
-                          <span className="block whitespace-nowrap">
-                            รองประธานกรรมการบริหาร
-                          </span>
-                          <span className="block whitespace-nowrap">
-                            ประธาน เขตภาคกลาง
-                          </span>
-                        </>
-                      )}
+  {item.id === "exec-003" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตอีสานเหนือ
+      </span>
+    </>
+  )}
 
-                      {item.id === "exec-005" && (
-                        <>
-                          <span className="block whitespace-nowrap">
-                            รองประธานกรรมการบริหาร
-                          </span>
-                          <span className="block whitespace-nowrap">
-                            ประธาน เขตภาคเหนือ
-                          </span>
-                        </>
-                      )}
+  {item.id === "exec-004" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตภาคกลาง
+      </span>
+    </>
+  )}
 
-                      {item.id === "exec-006" && (
-                        <>
-                          <span className="block whitespace-nowrap">
-                            รองประธานกรรมการบริหาร
-                          </span>
-                          <span className="block whitespace-nowrap">
-                            ประธาน เขตอีสานใต้1
-                          </span>
-                        </>
-                      )}
+  {item.id === "exec-005" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตภาคเหนือ
+      </span>
+    </>
+  )}
 
-                      {!item.id.startsWith("exec-") && (
-                        <span className="block">
-                          {item.roleName}
-                        </span>
-                      )}
-                    </p>
+  {item.id === "exec-006" && (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        ประธาน เขตอีสานใต้1
+      </span>
+    </>
+  )}
+
+  {!item.id.startsWith("exec-") && (
+    <span className="block">
+      {item.roleName}
+    </span>
+  )}
+</p>
                   </div>
                 </div>
 
