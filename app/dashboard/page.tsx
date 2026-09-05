@@ -9,6 +9,7 @@ import {
   EvaluationTarget,
   getEvaluationTargets,
 } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const [evaluator, setEvaluator] =
@@ -21,54 +22,138 @@ export default function DashboardPage() {
   const [completedIds, setCompletedIds] =
     useState<string[]>([]);
 
+  const [loading, setLoading] =
+    useState(true);
+
   useEffect(() => {
-    const savedId = localStorage.getItem(
-      "assessment_user"
-    );
+    async function loadDashboard() {
+      try {
+        const savedId =
+          localStorage.getItem(
+            "assessment_user"
+          );
 
-    if (!savedId) {
-      window.location.href = "/";
-      return;
-    }
+        if (!savedId) {
+          window.location.href = "/";
+          return;
+        }
 
-    const user = employees.find(
-      (employee) => employee.id === savedId
-    );
+        const user = employees.find(
+          (employee) =>
+            employee.id === savedId
+        );
 
-    if (!user) {
-      localStorage.removeItem(
-        "assessment_user"
-      );
+        if (!user) {
+          localStorage.removeItem(
+            "assessment_user"
+          );
 
-      window.location.href = "/";
-      return;
-    }
+          window.location.href = "/";
+          return;
+        }
 
-    setEvaluator(user);
+        setEvaluator(user);
 
-    const evaluationTargets =
-      getEvaluationTargets(user);
+        const evaluationTargets =
+          getEvaluationTargets(user);
 
-    setTargets(evaluationTargets);
+        setTargets(
+          evaluationTargets
+        );
 
-    // =====================================================
-    // ตรวจว่าผู้ประเมินคนนี้ประเมินใครไปแล้วบ้าง
-    // =====================================================
-    const completed: string[] = [];
+        /*
+         * =====================================================
+         * โหลดผลการประเมินจาก Supabase
+         * =====================================================
+         */
 
-    evaluationTargets.forEach((target) => {
-      const key =
-        `assessment_result_${user.id}_${target.id}`;
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("assessment_results")
+          .select(
+            "evaluator_id,target_id"
+          )
+          .eq(
+            "evaluator_id",
+            user.id
+          );
 
-      const result =
-        localStorage.getItem(key);
+        if (error) {
+          console.error(
+            "ไม่สามารถโหลดผลจาก Supabase:",
+            error
+          );
+        }
 
-      if (result) {
-        completed.push(target.id);
+        /*
+         * =====================================================
+         * เก็บ target_id ที่ประเมินแล้วจาก Supabase
+         * =====================================================
+         */
+
+        const completedSet =
+          new Set<string>();
+
+        if (data) {
+          data.forEach((row) => {
+            if (
+              row.evaluator_id ===
+                user.id &&
+              row.target_id
+            ) {
+              completedSet.add(
+                row.target_id
+              );
+            }
+          });
+        }
+
+        /*
+         * =====================================================
+         * รองรับข้อมูลเก่าใน LocalStorage
+         * =====================================================
+         */
+
+        evaluationTargets.forEach(
+          (target) => {
+            const key =
+              `assessment_result_${user.id}_${target.id}`;
+
+            const result =
+              localStorage.getItem(
+                key
+              );
+
+            if (result) {
+              completedSet.add(
+                target.id
+              );
+            }
+          }
+        );
+
+        /*
+         * =====================================================
+         * แปลงกลับเป็น array
+         * =====================================================
+         */
+
+        setCompletedIds(
+          Array.from(completedSet)
+        );
+      } catch (error) {
+        console.error(
+          "โหลด Dashboard ไม่สำเร็จ:",
+          error
+        );
+      } finally {
+        setLoading(false);
       }
-    });
+    }
 
-    setCompletedIds(completed);
+    loadDashboard();
   }, []);
 
   const getRoleIcon = (
@@ -116,22 +201,26 @@ export default function DashboardPage() {
   const groupedTargets = {
     director: targets.filter(
       (target) =>
-        target.category === "director"
+        target.category ===
+        "director"
     ),
 
     area_manager: targets.filter(
       (target) =>
-        target.category === "area_manager"
+        target.category ===
+        "area_manager"
     ),
 
     branch_manager: targets.filter(
       (target) =>
-        target.category === "branch_manager"
+        target.category ===
+        "branch_manager"
     ),
 
     headquarters: targets.filter(
       (target) =>
-        target.category === "headquarters"
+        target.category ===
+        "headquarters"
     ),
   };
 
@@ -139,9 +228,13 @@ export default function DashboardPage() {
     completedIds.length;
 
   const pendingCount =
-    targets.length - completedCount;
+    Math.max(
+      targets.length -
+        completedCount,
+      0
+    );
 
-  if (!evaluator) {
+  if (loading || !evaluator) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
         <div className="text-center text-slate-500">
@@ -162,6 +255,7 @@ export default function DashboardPage() {
       {/* =====================================================
           Header
       ===================================================== */}
+
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
@@ -180,7 +274,8 @@ export default function DashboardPage() {
                 "assessment_user"
               );
 
-              window.location.href = "/";
+              window.location.href =
+                "/";
             }}
             className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-95 sm:px-4 sm:py-2.5 sm:text-sm"
           >
@@ -192,16 +287,21 @@ export default function DashboardPage() {
       {/* =====================================================
           Main Content
       ===================================================== */}
+
       <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-8">
         {/* ===================================================
             User information
         =================================================== */}
+
         <section className="mb-5 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-lg shadow-blue-100 sm:mb-8 sm:rounded-3xl sm:p-7">
           <div className="flex flex-col gap-4 sm:gap-5 md:flex-row md:items-center md:justify-between">
             {/* User */}
+
             <div className="flex min-w-0 items-center gap-3 sm:gap-5">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl backdrop-blur sm:h-20 sm:w-20 sm:rounded-3xl sm:text-4xl">
-                {getRoleIcon(evaluator.role)}
+                {getRoleIcon(
+                  evaluator.role
+                )}
               </div>
 
               <div className="min-w-0">
@@ -219,13 +319,15 @@ export default function DashboardPage() {
 
                 {evaluator.region && (
                   <p className="mt-0.5 truncate text-xs text-blue-100 sm:mt-1">
-                    เขต: {evaluator.region}
+                    เขต:{" "}
+                    {evaluator.region}
                   </p>
                 )}
               </div>
             </div>
 
             {/* Statistics */}
+
             <div className="grid grid-cols-3 gap-2 sm:flex sm:gap-3">
               <div className="rounded-xl bg-white/15 px-3 py-3 text-center backdrop-blur sm:min-w-[110px] sm:rounded-2xl sm:px-5 sm:py-4">
                 <div className="text-xl font-bold sm:text-3xl">
@@ -263,6 +365,7 @@ export default function DashboardPage() {
         {/* ===================================================
             Page title
         =================================================== */}
+
         <div className="mb-4 sm:mb-6">
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
             👥 ผู้ที่ฉันต้องประเมิน
@@ -276,6 +379,7 @@ export default function DashboardPage() {
         {/* ===================================================
             Progress
         =================================================== */}
+
         {targets.length > 0 && (
           <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-8 sm:rounded-3xl sm:p-5">
             <div className="flex items-center justify-between gap-3">
@@ -285,7 +389,9 @@ export default function DashboardPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-                  ประเมินแล้ว {completedCount} จาก{" "}
+                  ประเมินแล้ว{" "}
+                  {completedCount}{" "}
+                  จาก{" "}
                   {targets.length} คน
                 </p>
               </div>
@@ -320,66 +426,104 @@ export default function DashboardPage() {
         {/* ===================================================
             Summary cards
         =================================================== */}
+
         <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <SummaryCard
             icon="🏢"
             title="ผู้อำนวยการฝ่าย"
-            count={groupedTargets.director.length}
+            count={
+              groupedTargets
+                .director.length
+            }
           />
 
           <SummaryCard
             icon="🌎"
             title="ผู้จัดการเขต"
-            count={groupedTargets.area_manager.length}
+            count={
+              groupedTargets
+                .area_manager.length
+            }
           />
 
           <SummaryCard
             icon="🏪"
             title="ผู้จัดการสาขา"
-            count={groupedTargets.branch_manager.length}
+            count={
+              groupedTargets
+                .branch_manager.length
+            }
           />
 
           <SummaryCard
             icon="🏛️"
             title="สำนักงานใหญ่"
-            count={groupedTargets.headquarters.length}
+            count={
+              groupedTargets
+                .headquarters.length
+            }
           />
         </div>
 
         {/* ===================================================
             Targets
         =================================================== */}
+
         <div className="space-y-6 sm:space-y-8">
           <TargetSection
             title="🏢 ผู้อำนวยการฝ่าย"
             subtitle="รายชื่อผู้อำนวยการฝ่ายที่สามารถประเมินได้"
-            targets={groupedTargets.director}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.director
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
 
           <TargetSection
             title="🌎 ผู้จัดการเขต"
             subtitle="ผู้จัดการเขตที่อยู่ในสิทธิ์การประเมิน"
-            targets={groupedTargets.area_manager}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.area_manager
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
 
           <TargetSection
             title="🏪 ผู้จัดการสาขา"
             subtitle="ผู้จัดการสาขาที่อยู่ในเขตที่รับผิดชอบ"
-            targets={groupedTargets.branch_manager}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.branch_manager
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
 
           <TargetSection
             title="🏛️ ฝ่ายสำนักงานใหญ่"
             subtitle="ฝ่ายสำนักงานใหญ่ที่สามารถประเมินได้"
-            targets={groupedTargets.headquarters}
-            getCategoryName={getCategoryName}
-            completedIds={completedIds}
+            targets={
+              groupedTargets.headquarters
+            }
+            getCategoryName={
+              getCategoryName
+            }
+            completedIds={
+              completedIds
+            }
           />
         </div>
       </div>
@@ -449,6 +593,7 @@ function TargetSection({
   return (
     <section>
       {/* Section Header */}
+
       <div className="mb-3 sm:mb-4">
         <h3 className="text-lg font-bold text-slate-900 sm:text-xl">
           {title}
@@ -460,6 +605,7 @@ function TargetSection({
       </div>
 
       {/* Target Cards */}
+
       <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {targets.map((target) => {
           const completed =
@@ -477,8 +623,10 @@ function TargetSection({
               }`}
             >
               {/* Person */}
+
               <div className="flex items-start gap-3 sm:gap-4">
                 {/* Icon */}
+
                 <div
                   className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${
                     completed
@@ -504,6 +652,7 @@ function TargetSection({
                 </div>
 
                 {/* Information */}
+
                 <div className="min-w-0 flex-1">
                   <h4 className="break-words text-sm font-bold leading-6 text-slate-900 sm:text-base">
                     {target.name}
@@ -524,19 +673,22 @@ function TargetSection({
 
                   {target.branch && (
                     <p className="mt-0.5 break-words text-xs text-slate-500 sm:mt-1 sm:text-sm">
-                      📍 {target.branch}
+                      📍{" "}
+                      {target.branch}
                     </p>
                   )}
 
                   {target.region && (
                     <p className="mt-0.5 text-[11px] text-slate-400 sm:mt-1 sm:text-xs">
-                      เขต {target.region}
+                      เขต{" "}
+                      {target.region}
                     </p>
                   )}
                 </div>
               </div>
 
               {/* Status */}
+
               {completed && (
                 <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 sm:mt-4 sm:text-sm">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs text-white">
@@ -548,6 +700,7 @@ function TargetSection({
               )}
 
               {/* Button */}
+
               <button
                 onClick={() => {
                   window.location.href =

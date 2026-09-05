@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { employees, headquarters } from "@/data/employees";
-import {
-  getEvaluationEvaluators,
-} from "@/lib/permissions";
+import { getEvaluationEvaluators } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
 type AssessmentResult = {
   evaluatorId: string;
@@ -34,6 +33,29 @@ type EvaluatorResult = {
   result: AssessmentResult | null;
 };
 
+type SupabaseAssessmentRow = {
+  id: number;
+  evaluator_id: string;
+  evaluator_name: string;
+  evaluator_role: string;
+
+  target_id: string;
+  target_name: string;
+  target_role: string;
+
+  form_type: string;
+
+  answers: Record<string, number>;
+
+  total_score: number;
+  max_score: number;
+
+  suggestion: string;
+
+  submitted_at: string;
+  created_at: string;
+};
+
 export default function ResultsPage({
   params,
 }: {
@@ -43,9 +65,7 @@ export default function ResultsPage({
   const [targetName, setTargetName] = useState("");
   const [targetRole, setTargetRole] = useState("");
 
-  const [results, setResults] = useState<
-    EvaluatorResult[]
-  >([]);
+  const [results, setResults] = useState<EvaluatorResult[]>([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -62,17 +82,14 @@ export default function ResultsPage({
          * =====================================================
          * ADMIN ONLY
          * =====================================================
-         *
-         * หน้านี้สำหรับ Admin เท่านั้น
          */
-        const adminAccess =
-          sessionStorage.getItem(
-            "assessment_admin_access"
-          );
+
+        const adminAccess = sessionStorage.getItem(
+          "assessment_admin_access"
+        );
 
         if (adminAccess !== "true") {
-          window.location.href =
-            "/dashboard";
+          window.location.href = "/dashboard";
           return;
         }
 
@@ -82,40 +99,21 @@ export default function ResultsPage({
          * =====================================================
          */
 
-        const employeeTarget =
-          employees.find(
-            (employee) =>
-              employee.id === id
-          );
+        const employeeTarget = employees.find(
+          (employee) => employee.id === id
+        );
 
         if (employeeTarget) {
-          setTargetName(
-            employeeTarget.name
-          );
-
-          setTargetRole(
-            employeeTarget.roleName
-          );
+          setTargetName(employeeTarget.name);
+          setTargetRole(employeeTarget.roleName);
         } else if (id.startsWith("hq-")) {
-          const index =
-            Number(
-              id.replace(
-                "hq-",
-                ""
-              )
-            ) - 1;
+          const index = Number(id.replace("hq-", "")) - 1;
 
-          const headquartersTarget =
-            headquarters[index];
+          const headquartersTarget = headquarters[index];
 
           if (headquartersTarget) {
-            setTargetName(
-              headquartersTarget
-            );
-
-            setTargetRole(
-              "ฝ่ายสำนักงานใหญ่"
-            );
+            setTargetName(headquartersTarget);
+            setTargetRole("ฝ่ายสำนักงานใหญ่");
           }
         }
 
@@ -125,25 +123,106 @@ export default function ResultsPage({
          * =====================================================
          */
 
-        const evaluators =
-          getEvaluationEvaluators(id);
+        const evaluators = getEvaluationEvaluators(id);
 
         /*
          * =====================================================
-         * โหลดผลของผู้ประเมินแต่ละคน
+         * โหลดผลจาก SUPABASE
+         * =====================================================
+         */
+
+        let supabaseRows: SupabaseAssessmentRow[] = [];
+
+        const { data, error } = await supabase
+          .from("assessment_results")
+          .select("*")
+          .eq("target_id", id);
+
+        if (error) {
+          console.error(
+            "ไม่สามารถโหลดผลการประเมินจาก Supabase:",
+            error
+          );
+        } else {
+          supabaseRows =
+            (data as SupabaseAssessmentRow[]) || [];
+        }
+
+        /*
+         * =====================================================
+         * สร้างผลของผู้ประเมินแต่ละคน
          * =====================================================
          */
 
         const evaluatorResults: EvaluatorResult[] =
-          evaluators.map(
-            (evaluator) => {
-              let result:
-                | AssessmentResult
-                | null = null;
+          evaluators.map((evaluator) => {
+            let result: AssessmentResult | null = null;
 
-              /*
-               * Key หลัก
-               */
+            /*
+             * -------------------------------------------------
+             * 1. หาใน SUPABASE ก่อน
+             * -------------------------------------------------
+             */
+
+            const supabaseResult = supabaseRows.find(
+              (row) =>
+                row.evaluator_id === evaluator.id &&
+                row.target_id === id
+            );
+
+            if (supabaseResult) {
+              result = {
+                evaluatorId:
+                  supabaseResult.evaluator_id,
+
+                evaluatorName:
+                  supabaseResult.evaluator_name,
+
+                evaluatorRole:
+                  supabaseResult.evaluator_role,
+
+                targetId:
+                  supabaseResult.target_id,
+
+                targetName:
+                  supabaseResult.target_name,
+
+                targetRole:
+                  supabaseResult.target_role,
+
+                formType:
+                  supabaseResult.form_type,
+
+                answers:
+                  supabaseResult.answers || {},
+
+                totalScore:
+                  Number(
+                    supabaseResult.total_score
+                  ) || 0,
+
+                maxScore:
+                  Number(
+                    supabaseResult.max_score
+                  ) || 0,
+
+                suggestion:
+                  supabaseResult.suggestion || "",
+
+                submittedAt:
+                  supabaseResult.submitted_at ||
+                  supabaseResult.created_at,
+              };
+            }
+
+            /*
+             * -------------------------------------------------
+             * 2. FALLBACK localStorage
+             * รองรับข้อมูลเก่าที่เคยบันทึกไว้
+             * -------------------------------------------------
+             */
+
+            if (!result) {
               const savedResult =
                 localStorage.getItem(
                   `assessment_result_${evaluator.id}_${id}`
@@ -152,14 +231,11 @@ export default function ResultsPage({
               if (savedResult) {
                 try {
                   const parsed =
-                    JSON.parse(
-                      savedResult
-                    );
+                    JSON.parse(savedResult);
 
                   if (
                     parsed &&
-                    parsed.targetId ===
-                      id &&
+                    parsed.targetId === id &&
                     parsed.evaluatorId ===
                       evaluator.id
                   ) {
@@ -169,75 +245,67 @@ export default function ResultsPage({
                   result = null;
                 }
               }
+            }
 
-              /*
-               * =================================================
-               * รองรับข้อมูลเก่า
-               * =================================================
-               */
-              if (!result) {
-                for (
-                  let index = 0;
-                  index <
-                  localStorage.length;
-                  index++
+            /*
+             * -------------------------------------------------
+             * 3. รองรับข้อมูลเก่าใน localStorage
+             * -------------------------------------------------
+             */
+
+            if (!result) {
+              for (
+                let index = 0;
+                index < localStorage.length;
+                index++
+              ) {
+                const key =
+                  localStorage.key(index);
+
+                if (
+                  !key ||
+                  !key.startsWith(
+                    "assessment_result_"
+                  )
                 ) {
-                  const key =
-                    localStorage.key(
-                      index
-                    );
+                  continue;
+                }
 
-                  if (
-                    !key ||
-                    !key.startsWith(
-                      "assessment_result_"
-                    )
-                  ) {
+                try {
+                  const raw =
+                    localStorage.getItem(key);
+
+                  if (!raw) {
                     continue;
                   }
 
-                  try {
-                    const raw =
-                      localStorage.getItem(
-                        key
-                      );
+                  const parsed =
+                    JSON.parse(raw);
 
-                    if (!raw) {
-                      continue;
-                    }
-
-                    const parsed =
-                      JSON.parse(raw);
-
-                    if (
-                      parsed &&
-                      parsed.targetId ===
-                        id &&
-                      parsed.evaluatorId ===
-                        evaluator.id
-                    ) {
-                      result = parsed;
-                      break;
-                    }
-                  } catch {
-                    // ข้ามข้อมูลที่อ่านไม่ได้
+                  if (
+                    parsed &&
+                    parsed.targetId === id &&
+                    parsed.evaluatorId ===
+                      evaluator.id
+                  ) {
+                    result = parsed;
+                    break;
                   }
+                } catch {
+                  // ข้ามข้อมูลที่อ่านไม่ได้
                 }
               }
-
-              return {
-                id: evaluator.id,
-                name: evaluator.name,
-                roleName:
-                  evaluator.roleName,
-                result,
-              };
             }
-          );
 
-        setResults(
-          evaluatorResults
-        );
+            return {
+              id: evaluator.id,
+              name: evaluator.name,
+              roleName: evaluator.roleName,
+              result,
+            };
+          });
+
+        setResults(evaluatorResults);
       } catch (error) {
         console.error(
           "ไม่สามารถโหลดผลการประเมิน:",
@@ -257,16 +325,13 @@ export default function ResultsPage({
    * =========================================================
    */
 
-  const completedCount =
-    useMemo(() => {
-      return results.filter(
-        (item) =>
-          item.result !== null
-      ).length;
-    }, [results]);
+  const completedCount = useMemo(() => {
+    return results.filter(
+      (item) => item.result !== null
+    ).length;
+  }, [results]);
 
-  const totalEvaluators =
-    results.length;
+  const totalEvaluators = results.length;
 
   /*
    * =========================================================
@@ -277,9 +342,7 @@ export default function ResultsPage({
   const progressPercent =
     totalEvaluators > 0
       ? Math.round(
-          (completedCount /
-            totalEvaluators) *
-            100
+          (completedCount / totalEvaluators) * 100
         )
       : 0;
 
@@ -289,61 +352,42 @@ export default function ResultsPage({
    * =========================================================
    */
 
-  const averagePercent =
-    useMemo(() => {
-      const completedResults =
-        results
-          .map(
-            (item) =>
-              item.result
-          )
-          .filter(
-            (
-              result
-            ): result is AssessmentResult =>
-              result !== null
-          );
-
-      if (
-        completedResults.length === 0
-      ) {
-        return 0;
-      }
-
-      const totalScore =
-        completedResults.reduce(
-          (
-            sum,
-            result
-          ) =>
-            sum +
-            result.totalScore,
-          0
-        );
-
-      const maxScore =
-        completedResults.reduce(
-          (
-            sum,
-            result
-          ) =>
-            sum +
-            result.maxScore,
-          0
-        );
-
-      if (
-        maxScore === 0
-      ) {
-        return 0;
-      }
-
-      return Math.round(
-        (totalScore /
-          maxScore) *
-          100
+  const averagePercent = useMemo(() => {
+    const completedResults = results
+      .map((item) => item.result)
+      .filter(
+        (
+          result
+        ): result is AssessmentResult =>
+          result !== null
       );
-    }, [results]);
+
+    if (completedResults.length === 0) {
+      return 0;
+    }
+
+    const totalScore =
+      completedResults.reduce(
+        (sum, result) =>
+          sum + result.totalScore,
+        0
+      );
+
+    const maxScore =
+      completedResults.reduce(
+        (sum, result) =>
+          sum + result.maxScore,
+        0
+      );
+
+    if (maxScore === 0) {
+      return 0;
+    }
+
+    return Math.round(
+      (totalScore / maxScore) * 100
+    );
+  }, [results]);
 
   /*
    * =========================================================
@@ -356,8 +400,7 @@ export default function ResultsPage({
       return;
     }
 
-    const rows: string[][] =
-      [];
+    const rows: string[][] = [];
 
     rows.push([
       "ผลการประเมินพนักงาน",
@@ -385,119 +428,89 @@ export default function ResultsPage({
       "ข้อเสนอแนะ",
     ]);
 
-    results.forEach(
-      (item) => {
-        if (!item.result) {
-          rows.push([
-            item.name,
-            item.roleName,
-            "ยังไม่ได้ประเมิน",
-            "",
-            "",
-            "",
-            "",
-          ]);
-
-          return;
-        }
-
-        const result =
-          item.result;
-
-        const percent =
-          result.maxScore > 0
-            ? Math.round(
-                (result.totalScore /
-                  result.maxScore) *
-                  100
-              )
-            : 0;
-
+    results.forEach((item) => {
+      if (!item.result) {
         rows.push([
-          result.evaluatorName,
-          result.evaluatorRole,
-          String(
-            result.totalScore
-          ),
-          String(
-            result.maxScore
-          ),
-          `${percent}%`,
-          result.submittedAt
-            ? new Date(
-                result.submittedAt
-              ).toLocaleString(
-                "th-TH"
-              )
-            : "",
-          result.suggestion ||
-            "",
+          item.name,
+          item.roleName,
+          "ยังไม่ได้ประเมิน",
+          "",
+          "",
+          "",
+          "",
         ]);
+
+        return;
+      }
+
+      const result = item.result;
+
+      const percent =
+        result.maxScore > 0
+          ? Math.round(
+              (result.totalScore /
+                result.maxScore) *
+                100
+            )
+          : 0;
+
+      rows.push([
+        result.evaluatorName,
+        result.evaluatorRole,
+        String(result.totalScore),
+        String(result.maxScore),
+        `${percent}%`,
+        result.submittedAt
+          ? new Date(
+              result.submittedAt
+            ).toLocaleString("th-TH")
+          : "",
+        result.suggestion || "",
+      ]);
+    });
+
+    const csv = rows
+      .map((row) =>
+        row
+          .map((value) => {
+            const text = String(
+              value ?? ""
+            );
+
+            return `"${text.replace(
+              /"/g,
+              '""'
+            )}"`;
+          })
+          .join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob(
+      ["\ufeff" + csv],
+      {
+        type: "text/csv;charset=utf-8;",
       }
     );
 
-    const csv =
-      rows
-        .map(
-          (row) =>
-            row
-              .map(
-                (value) => {
-                  const text =
-                    String(
-                      value ??
-                        ""
-                    );
-
-                  return `"${text.replace(
-                    /"/g,
-                    '""'
-                  )}"`;
-                }
-              )
-              .join(",")
-        )
-        .join("\n");
-
-    const blob =
-      new Blob(
-        [
-          "\ufeff" +
-            csv,
-        ],
-        {
-          type: "text/csv;charset=utf-8;",
-        }
-      );
-
     const url =
-      URL.createObjectURL(
-        blob
-      );
+      URL.createObjectURL(blob);
 
     const link =
-      document.createElement(
-        "a"
-      );
+      document.createElement("a");
 
     link.href = url;
 
     link.download =
       `ผลการประเมิน_${targetName}.csv`;
 
-    document.body.appendChild(
-      link
-    );
+    document.body.appendChild(link);
 
     link.click();
 
-    document.body.removeChild(
-      link
-    );
+    document.body.removeChild(link);
 
-    URL.revokeObjectURL(
-      url
-    );
+    URL.revokeObjectURL(url);
   };
 
   /*
@@ -528,9 +541,7 @@ export default function ResultsPage({
 
   return (
     <main className="min-h-screen bg-slate-100 pb-10 sm:pb-16">
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
+      {/* HEADER */}
 
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-5">
@@ -557,9 +568,7 @@ export default function ResultsPage({
       </header>
 
       <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8">
-        {/* ===================================================
-            EMPLOYEE
-        =================================================== */}
+        {/* EMPLOYEE */}
 
         <section className="mb-5 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-xl shadow-blue-100 sm:mb-6 sm:p-7">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -574,8 +583,7 @@ export default function ResultsPage({
               </h2>
 
               <p className="mt-2 text-sm text-blue-100 sm:text-base">
-                {targetRole ||
-                  "-"}
+                {targetRole || "-"}
               </p>
             </div>
 
@@ -607,9 +615,7 @@ export default function ResultsPage({
           </div>
         </section>
 
-        {/* ===================================================
-            PROGRESS
-        =================================================== */}
+        {/* PROGRESS */}
 
         <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-8 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -643,9 +649,7 @@ export default function ResultsPage({
           </div>
         </section>
 
-        {/* ===================================================
-            ACTION
-        =================================================== */}
+        {/* ACTION */}
 
         <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -659,171 +663,157 @@ export default function ResultsPage({
           </div>
 
           <button
-            onClick={
-              exportExcel
-            }
+            onClick={exportExcel}
             className="w-full rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] sm:w-auto"
           >
             📊 Export Excel
           </button>
         </div>
 
-        {/* ===================================================
-            EVALUATORS
-        =================================================== */}
+        {/* EVALUATORS */}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {results.map(
-            (item) => {
-              const result =
-                item.result;
+          {results.map((item) => {
+            const result = item.result;
 
-              const percent =
-                result &&
-                result.maxScore >
-                  0
-                  ? Math.round(
-                      (result.totalScore /
-                        result.maxScore) *
-                        100
-                    )
-                  : 0;
+            const percent =
+              result &&
+              result.maxScore > 0
+                ? Math.round(
+                    (result.totalScore /
+                      result.maxScore) *
+                      100
+                  )
+                : 0;
 
-              return (
-                <div
-                  key={item.id}
-                  className={`rounded-3xl border bg-white p-4 shadow-sm transition sm:p-5 ${
-                    result
-                      ? "border-slate-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
-                      : "border-slate-200"
-                  }`}
-                >
-                  {/* ผู้ประเมิน */}
-                  <div className="flex items-start gap-3 sm:gap-4">
-                    <div
-                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${
-                        result
-                          ? "bg-blue-50"
-                          : "bg-slate-100"
-                      }`}
-                    >
-                      {result
-                        ? "👤"
-                        : "⏳"}
-                    </div>
+            return (
+              <div
+                key={item.id}
+                className={`rounded-3xl border bg-white p-4 shadow-sm transition sm:p-5 ${
+                  result
+                    ? "border-slate-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
+                    : "border-slate-200"
+                }`}
+              >
+                {/* ผู้ประเมิน */}
 
-                    <div className="min-w-0 flex-1">
-                      <h3 className="break-words font-bold leading-6 text-slate-900">
-                        {item.name}
-                      </h3>
-
-                      <p className="mt-1 text-sm text-blue-600">
-                        {
-                          item.roleName
-                        }
-                      </p>
-                    </div>
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl sm:h-14 sm:w-14 sm:text-2xl ${
+                      result
+                        ? "bg-blue-50"
+                        : "bg-slate-100"
+                    }`}
+                  >
+                    {result ? "👤" : "⏳"}
                   </div>
 
-                  {result ? (
-                    <>
-                      {/* คะแนน */}
-                      <div className="mt-4 rounded-2xl bg-slate-50 p-4 sm:mt-5">
-                        <div className="flex items-end justify-between gap-3">
-                          <div>
-                            <p className="text-xs text-slate-500 sm:text-sm">
-                              คะแนนที่ได้
-                            </p>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words font-bold leading-6 text-slate-900">
+                      {item.name}
+                    </h3>
 
-                            <p className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
-                              {
-                                result.totalScore
-                              }
-
-                              <span className="text-base font-medium text-slate-400 sm:text-lg">
-                                {" "}
-                                /{" "}
-                                {
-                                  result.maxScore
-                                }
-                              </span>
-                            </p>
-                          </div>
-
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-blue-600 sm:text-2xl">
-                              {percent}%
-                            </p>
-
-                            <p className="text-[11px] text-slate-400 sm:text-xs">
-                              คะแนนประเมิน
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* สถานะ */}
-                      <div className="mt-3 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                        <span>
-                          ✅ ประเมินแล้ว
-                        </span>
-
-                        <span>
-                          {result.submittedAt
-                            ? new Date(
-                                result.submittedAt
-                              ).toLocaleDateString(
-                                "th-TH"
-                              )
-                            : "-"}
-                        </span>
-                      </div>
-
-                      {/* ดูรายข้อ */}
-                      <button
-                        onClick={() => {
-                          window.location.href =
-                            `/results/${targetId}/reviewer/${item.id}`;
-                        }}
-                        className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3.5 font-semibold text-white transition hover:bg-blue-700 active:scale-[0.99]"
-                      >
-                        👁 ดูคะแนนรายข้อ →
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {/* ยังไม่ประเมิน */}
-                      <div className="mt-4 rounded-2xl bg-slate-50 p-5 text-center sm:mt-5">
-                        <div className="text-3xl">
-                          ⏳
-                        </div>
-
-                        <p className="mt-2 font-semibold text-slate-600">
-                          ยังไม่ได้ประเมิน
-                        </p>
-
-                        <p className="mt-1 text-xs text-slate-400">
-                          รอผู้ประเมินส่งแบบประเมิน
-                        </p>
-                      </div>
-
-                      <div className="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-center text-xs text-slate-400 sm:mt-4 sm:text-sm">
-                        ⏳ รอผลการประเมิน
-                      </div>
-                    </>
-                  )}
+                    <p className="mt-1 text-sm text-blue-600">
+                      {item.roleName}
+                    </p>
+                  </div>
                 </div>
-              );
-            }
-          )}
+
+                {result ? (
+                  <>
+                    {/* คะแนน */}
+
+                    <div className="mt-4 rounded-2xl bg-slate-50 p-4 sm:mt-5">
+                      <div className="flex items-end justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500 sm:text-sm">
+                            คะแนนที่ได้
+                          </p>
+
+                          <p className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
+                            {result.totalScore}
+
+                            <span className="text-base font-medium text-slate-400 sm:text-lg">
+                              {" "}
+                              /{" "}
+                              {result.maxScore}
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-blue-600 sm:text-2xl">
+                            {percent}%
+                          </p>
+
+                          <p className="text-[11px] text-slate-400 sm:text-xs">
+                            คะแนนประเมิน
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* สถานะ */}
+
+                    <div className="mt-3 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                      <span>
+                        ✅ ประเมินแล้ว
+                      </span>
+
+                      <span>
+                        {result.submittedAt
+                          ? new Date(
+                              result.submittedAt
+                            ).toLocaleDateString(
+                              "th-TH"
+                            )
+                          : "-"}
+                      </span>
+                    </div>
+
+                    {/* ดูรายข้อ */}
+
+                    <button
+                      onClick={() => {
+                        window.location.href =
+                          `/results/${targetId}/reviewer/${item.id}`;
+                      }}
+                      className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3.5 font-semibold text-white transition hover:bg-blue-700 active:scale-[0.99]"
+                    >
+                      👁 ดูคะแนนรายข้อ →
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* ยังไม่ประเมิน */}
+
+                    <div className="mt-4 rounded-2xl bg-slate-50 p-5 text-center sm:mt-5">
+                      <div className="text-3xl">
+                        ⏳
+                      </div>
+
+                      <p className="mt-2 font-semibold text-slate-600">
+                        ยังไม่ได้ประเมิน
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        รอผู้ประเมินส่งแบบประเมิน
+                      </p>
+                    </div>
+
+                    <div className="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-center text-xs text-slate-400 sm:mt-4 sm:text-sm">
+                      ⏳ รอผลการประเมิน
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/* ===================================================
-            EMPTY
-        =================================================== */}
+        {/* EMPTY */}
 
-        {results.length ===
-          0 && (
+        {results.length === 0 && (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12">
             <div className="text-5xl">
               📋
