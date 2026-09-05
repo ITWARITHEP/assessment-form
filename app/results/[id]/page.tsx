@@ -958,20 +958,40 @@ export default function ResultsPage({
 
               <p className="mt-1 text-xs leading-5 text-blue-100 sm:mt-2 sm:text-base sm:leading-6">
   {targetRole ? (
-    targetRole.includes(" / ") ? (
-      <>
+    (() => {
+      const role = targetRole
+        .replace(/\s*\/\s*/g, " / ")
+        .trim();
+
+      // รองรับ:
+      // รองประธานกรรมการบริหาร / ประธาน เขตภาคเหนือ
+      // รองประธานกรรมการบริหาร ประธาน เขตภาคเหนือ
+      const match = role.match(
+        /^(.*?)\s+(ประธาน\s*เขต.*)$/u
+      );
+
+      if (match) {
+        return (
+          <>
+            <span className="block">
+              {match[1].replace(/\s*\/\s*$/, "").trim()}
+            </span>
+
+            <span className="block">
+              {match[2]
+                .replace(/^ประธาน\s*เขต/, "ประธาน เขต")
+                .trim()}
+            </span>
+          </>
+        );
+      }
+
+      return (
         <span className="block">
-          {targetRole.split(" / ")[0]}
+          {role}
         </span>
-        <span className="block">
-          {targetRole.split(" / ")[1]}
-        </span>
-      </>
-    ) : (
-      <span className="block">
-        {targetRole}
-      </span>
-    )
+      );
+    })()
   ) : (
     "-"
   )}
