@@ -7,6 +7,305 @@ import { employees, headquarters } from "@/data/employees";
 import { getEvaluationEvaluators } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 
+/*
+ * =========================================================
+ * ชุดคำถามเดิมของระบบ
+ * ใช้สำหรับแสดงคำถามจริงใน Excel
+ * =========================================================
+ */
+
+type QuestionItem = {
+  id: string;
+  text: string;
+};
+
+type QuestionSection = {
+  section: string;
+  items: QuestionItem[];
+};
+
+/*
+ * ---------------------------------------------------------
+ * แบบประเมินผู้อำนวยการ
+ * ---------------------------------------------------------
+ */
+const directorQuestions: QuestionSection[] = [
+  {
+    section: "1. ด้านความรู้ความสามารถในหน้าที่",
+    items: [
+      {
+        id: "1.1",
+        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ ที่รับผิดชอบ",
+      },
+      {
+        id: "1.2",
+        text: "มีความรู้ความสามารถในการวิเคราะห์ปัญหา และการหาวิธีแก้ไขปรับปรุงพัฒนาระบบงานงาน",
+      },
+    ],
+  },
+  {
+    section: "2. ด้านการสื่อสารและการสอนงาน",
+    items: [
+      {
+        id: "2.1",
+        text: "มีการสอนงานตามมาตรฐานการปฏิบัติงานในฝ่าย",
+      },
+      {
+        id: "2.2",
+        text: "สามารถสอนงานให้สาขามีความรู้ความเข้าใจและปฏิบัติได้ถูกต้องตามมาตรฐานการปฏิบัติงานมากขึ้น",
+      },
+      {
+        id: "2.3",
+        text: "มีการตรวจติดตามงานอย่างสม่ำเสมอ พร้อมให้ข้อเสนอแนะและแนวทางในการแก้ไขปรับปรุง",
+      },
+      {
+        id: "2.4",
+        text: "สามารถสื่อสารติดต่อประสานงานกับบุคคลได้ทุกระดับอย่างเหมาะสม เพื่อผลสัมฤทธิ์ของงาน (การสื่อสาร 360 องศา)",
+      },
+      {
+        id: "2.5",
+        text: "มีการสื่อสารหรือสอนงานด้วยวิธีการ ที่เหมาะสม และน้ำเสียง วาจาที่สุภาพต่อผู้รับฟัง",
+      },
+      {
+        id: "2.6",
+        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
+      },
+      {
+        id: "2.7",
+        text: "ยินดีรับฟังความคิดเห็นและข้อเสนอแนะของสาขาเพื่อการปรับปรุงพัฒนา",
+      },
+    ],
+  },
+  {
+    section: "3. ด้านผลลัพธ์งานในหน้าที่",
+    items: [
+      {
+        id: "3.1",
+        text: "สามารถปฏิบัติงานได้ตามบทบาทหน้าที่ที่กำหนด",
+      },
+      {
+        id: "3.2",
+        text: "สามารถทำงานได้บรรลุผลตามเป้าหมายตัวชี้วัดของฝ่าย",
+      },
+    ],
+  },
+];
+
+/*
+ * ---------------------------------------------------------
+ * แบบประเมินผู้จัดการเขต
+ * ---------------------------------------------------------
+ */
+const areaManagerQuestions: QuestionSection[] = [
+  {
+    section: "1. ด้านความรู้ความสามารถในหน้าที่",
+    items: [
+      {
+        id: "1.1",
+        text: "มีความรู้ความสามารถในบทบาทหน้าที่ที่รับผิดชอบ",
+      },
+      {
+        id: "1.2",
+        text: "มีความรู้ความสามารถในการวิเคราะห์ปัญหา และการหาวิธีแก้ไขปรับปรุงพัฒนางานในเขตเพื่อให้การบริหารงานบรรลุเป้าหมาย กำไร 15.2 ได้",
+      },
+    ],
+  },
+  {
+    section: "2. ด้านการสื่อสารและการสอนงาน",
+    items: [
+      {
+        id: "2.1",
+        text: "สามารถสอนงานและโค้ชทีมงานสาขาได้",
+      },
+      {
+        id: "2.2",
+        text: "สามารถให้คำปรึกษา ให้คำแนะนำสาขาได้อย่างถูกต้อง",
+      },
+      {
+        id: "2.3",
+        text: "มีการตรวจติดตามงานกับสาขาอย่างสม่ำเสมอ",
+      },
+      {
+        id: "2.4",
+        text: "สามารถสื่อสารติดต่อประสานงานกับบุคคลได้ทุกระดับอย่างเหมาะสม เพื่อผลสัมฤทธิ์ของงาน(การสื่อสาร 360 องศา)",
+      },
+      {
+        id: "2.5",
+        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
+      },
+      {
+        id: "2.6",
+        text: "ยินดีรับฟังความคิดเห็นและข้อเสนอแนะของสาขาเพื่อการปรับปรุงพัฒนา",
+      },
+    ],
+  },
+  {
+    section: "3. ด้านผลลัพธ์งานในหน้าที่",
+    items: [
+      {
+        id: "3.1",
+        text: "สามารถปฏิบัติงานได้ตามบทบาทหน้าที่  ที่กำหนด",
+      },
+      {
+        id: "3.2",
+        text: "สามารถพัฒนาทีมงานในเขตให้มีพลัง มีไฟ และมีการเติบโตได้",
+      },
+      {
+        id: "3.3",
+        text: "สามารถบริหารจัดการงานสาขาในเขตให้ได้ผลลัพธ์ตามแผนงบประมาณกำไร 15.2",
+      },
+    ],
+  },
+];
+
+/*
+ * ---------------------------------------------------------
+ * แบบประเมินผู้จัดการสาขา
+ * ---------------------------------------------------------
+ */
+const branchManagerQuestions: QuestionSection[] = [
+  {
+    section: "1. ด้านความรู้ความสามารถในหน้าที่",
+    items: [
+      {
+        id: "1.1",
+        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ที่รับผิดชอบ",
+      },
+      {
+        id: "1.2",
+        text: "มีความรู้ความสามารถในการวิเคราะห์ปัญหา และการหาวิธีแก้ไขปรับปรุงพัฒนาเพื่อให้การบริหารงานบรรลุเป้าหมาย กำไร 15.2 ได้",
+      },
+    ],
+  },
+  {
+    section: "2. ด้านการสื่อสารและการสอนงาน",
+    items: [
+      {
+        id: "2.1",
+        text: "สามารถสอนงานและโค้ชทีมงานได้",
+      },
+      {
+        id: "2.2",
+        text: "สามารถให้คำปรึกษา ให้คำแนะนำทีมงานได้อย่างถูกต้อง",
+      },
+      {
+        id: "2.3",
+        text: "มีการตรวจติดตามงานในสาขาอย่างสม่ำเสมอ",
+      },
+      {
+        id: "2.4",
+        text: "สามารถสื่อสารติดต่อประสานงานกับบุคคลในองค์กรได้ทุกระดับอย่างเหมาะสม เพื่อผลสัมฤทธิ์ของงาน(การสื่อสาร 360 องศา)",
+      },
+      {
+        id: "2.5",
+        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนทีมงานด้วยความเต็มใจ",
+      },
+      {
+        id: "2.6",
+        text: "ยินดีรับฟังความคิดเห็นและข้อเสนอแนะของทีมงานเพื่อการปรับปรุงพัฒนา",
+      },
+    ],
+  },
+  {
+    section: "3. ด้านผลลัพธ์งานในหน้าที่",
+    items: [
+      {
+        id: "3.1",
+        text: "สามารถปฏิบัติงานได้ตามบทบาทหน้าที่ที่กำหนด",
+      },
+      {
+        id: "3.2",
+        text: "สามารถพัฒนาทีมงานและสร้างพลังทีมในสาขาให้มีกำลังใจ มีไฟ ในการปฏิบัติงานได้",
+      },
+      {
+        id: "3.3",
+        text: "สามารถบริหารจัดการงานในสาขาให้ได้ผลลัพธ์ตามแผนงบประมาณกำไร 15.2",
+      },
+    ],
+  },
+];
+
+/*
+ * ---------------------------------------------------------
+ * แบบประเมินฝ่ายสำนักงานใหญ่
+ * ---------------------------------------------------------
+ */
+const departmentQuestions: QuestionSection[] = [
+  {
+    section: "1. ด้านความรู้ความสามารถในหน้าที่",
+    items: [
+      {
+        id: "1.1",
+        text: "มีความรู้ความสามารถเหมาะสมในบทบาทหน้าที่ ที่รับผิดชอบ",
+      },
+      {
+        id: "1.2",
+        text: "มีความรู้ความสามารถในการช่วยสาขาวิเคราะห์ปัญหา และแนะนำแนวทางในการแก้ไขปัญหาให้กับสาขาได้",
+      },
+    ],
+  },
+  {
+    section: "2. ด้านการสื่อสารและการสอนงาน",
+    items: [
+      {
+        id: "2.1",
+        text: "มีการสอนงานตามมาตรฐานการปฏิบัติงานในฝ่าย",
+      },
+      {
+        id: "2.2",
+        text: "สามารถสอนงานให้สาขามีความรู้ความเข้าใจและปฏิบัติได้ถูกต้องตามมาตรฐานการปฏิบัติงานมากขึ้น",
+      },
+      {
+        id: "2.3",
+        text: "มีการสื่อสารหรือสอนงานด้วยวิธีการ ที่เหมาะสม และน้ำเสียง วาจาที่สุภาพต่อผู้รับฟัง",
+      },
+      {
+        id: "2.4",
+        text: "มีการตรวจติดตามงานพร้อมให้คำแนะนำอย่างสม่ำเสมอ",
+      },
+      {
+        id: "2.5",
+        text: "มีจิตมุ่งบริการพร้อมให้ความช่วยเหลือสนับสนุนสาขาด้วยความเต็มใจ",
+      },
+      {
+        id: "2.6",
+        text: "ยินดีรับฟังความคิดเห็นและข้อเสนอแนะของสาขาเพื่อการปรับปรุงพัฒนา",
+      },
+    ],
+  },
+  {
+    section: "3. ด้านผลลัพธ์งานในหน้าที่",
+    items: [
+      {
+        id: "3.1",
+        text: "สามารถสอนงานในฝ่ายได้ถูกต้องตามมาตรฐานการปฏิบัติงาน",
+      },
+      {
+        id: "3.2",
+        text: "จากการสอนงานสาขาสามารถปฏิบัติงานได้ถูกต้องตามมาตรฐานมากขึ้น",
+      },
+      {
+        id: "3.3",
+        text: "จากการช่วยเหลือสนับสนุน ทำให้สาขาดำเนินไปได้ถูกต้อง ราบรื่น และบรรลุตามเป้าหมายของฝ่าย",
+      },
+    ],
+  },
+];
+
+const scoreLabels: Record<number, string> = {
+  1: "ต้องปรับปรุง",
+  2: "พอใช้",
+  3: "ปานกลาง",
+  4: "ดี",
+  5: "ดีมาก",
+};
+
+/*
+ * =========================================================
+ * Result Types
+ * =========================================================
+ */
+
 type AssessmentResult = {
   evaluatorId: string;
   evaluatorName: string;
@@ -124,8 +423,7 @@ export default function ResultsPage({
          * =====================================================
          */
 
-        const evaluators =
-          getEvaluationEvaluators(id);
+        const evaluators = getEvaluationEvaluators(id);
 
         /*
          * =====================================================
@@ -158,14 +456,10 @@ export default function ResultsPage({
 
         const evaluatorResults: EvaluatorResult[] =
           evaluators.map((evaluator) => {
-            /*
-             * หาเฉพาะจาก Supabase
-             */
             const supabaseResult =
               supabaseRows.find(
                 (row) =>
-                  row.evaluator_id ===
-                    evaluator.id &&
+                  row.evaluator_id === evaluator.id &&
                   row.target_id === id
               );
 
@@ -389,12 +683,6 @@ export default function ResultsPage({
     const worksheet =
       XLSX.utils.json_to_sheet(rows);
 
-    /*
-     * -------------------------------------------------------
-     * กำหนดความกว้างคอลัมน์
-     * -------------------------------------------------------
-     */
-
     worksheet["!cols"] = [
       { wch: 30 },
       { wch: 30 },
@@ -440,6 +728,121 @@ export default function ResultsPage({
 
     /*
      * -------------------------------------------------------
+     * Sheet 3 : คะแนนรายข้อ
+     * -------------------------------------------------------
+     */
+
+    const questionRows: Array<{
+      "ผู้ประเมิน": string;
+      "ตำแหน่ง": string;
+      "หมวด": string;
+      "ข้อ": string;
+      "คำถาม": string;
+      "คะแนน": number | string;
+      "ระดับ": string;
+    }> = [];
+
+    results.forEach((item) => {
+      /*
+       * ยังไม่ได้ประเมิน
+       */
+      if (!item.result) {
+        questionRows.push({
+          "ผู้ประเมิน": item.name,
+          "ตำแหน่ง": item.roleName,
+          "หมวด": "-",
+          "ข้อ": "-",
+          "คำถาม": "-",
+          "คะแนน": "-",
+          "ระดับ": "ยังไม่ได้ประเมิน",
+        });
+
+        return;
+      }
+
+      const result = item.result;
+
+      /*
+       * เลือกชุดคำถามให้ตรงกับแบบประเมิน
+       */
+      let questionSet: QuestionSection[];
+
+      switch (result.formType) {
+        case "department":
+          questionSet = departmentQuestions;
+          break;
+
+        case "area_manager":
+          questionSet = areaManagerQuestions;
+          break;
+
+        case "branch_manager":
+          questionSet = branchManagerQuestions;
+          break;
+
+        case "director":
+        default:
+          questionSet = directorQuestions;
+          break;
+      }
+
+      /*
+       * แตกคำถามทีละหมวด
+       */
+      questionSet.forEach((section) => {
+        section.items.forEach((question) => {
+          const score =
+            result.answers?.[question.id];
+
+          questionRows.push({
+            "ผู้ประเมิน":
+              result.evaluatorName ||
+              item.name,
+
+            "ตำแหน่ง":
+              result.evaluatorRole ||
+              item.roleName,
+
+            "หมวด":
+              section.section,
+
+            "ข้อ":
+              question.id,
+
+            "คำถาม":
+              question.text,
+
+            "คะแนน":
+              typeof score === "number"
+                ? score
+                : "-",
+
+            "ระดับ":
+              typeof score === "number"
+                ? scoreLabels[score] || "-"
+                : "-",
+          });
+        });
+      });
+    });
+
+    const questionSheet =
+      XLSX.utils.json_to_sheet(
+        questionRows
+      );
+
+    questionSheet["!cols"] = [
+      { wch: 30 },
+      { wch: 28 },
+      { wch: 35 },
+      { wch: 10 },
+      { wch: 80 },
+      { wch: 10 },
+      { wch: 18 },
+    ];
+
+    /*
+     * -------------------------------------------------------
      * สร้าง Workbook
      * -------------------------------------------------------
      */
@@ -457,6 +860,12 @@ export default function ResultsPage({
       workbook,
       worksheet,
       "ผลการประเมิน"
+    );
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      questionSheet,
+      "คะแนนรายข้อ"
     );
 
     /*
@@ -533,44 +942,53 @@ export default function ResultsPage({
       <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8">
         {/* EMPLOYEE */}
 
-        <section className="mb-5 overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-xl shadow-blue-100 sm:mb-6 sm:p-7">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <section className="mb-4 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-3 text-white shadow-lg shadow-blue-100 sm:mb-6 sm:rounded-3xl sm:p-7">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-5">
+            {/* ชื่อผู้ถูกประเมิน */}
+
             <div className="min-w-0">
-              <p className="text-xs text-blue-100 sm:text-sm">
+              <p className="text-[10px] text-blue-100 sm:text-sm">
                 ผู้ถูกประเมิน
               </p>
 
-              <h2 className="mt-1 break-words text-xl font-bold leading-tight sm:text-3xl">
+              <h2 className="mt-0.5 break-words text-lg font-bold leading-tight sm:mt-1 sm:text-3xl">
                 {targetName ||
                   "ไม่พบข้อมูล"}
               </h2>
 
-              <p className="mt-2 text-sm text-blue-100 sm:text-base">
+              <p className="mt-1 text-xs text-blue-100 sm:mt-2 sm:text-base">
                 {targetRole || "-"}
               </p>
             </div>
 
+            {/* สถิติ */}
+
             <div className="grid grid-cols-2 gap-2 sm:gap-3 md:min-w-[300px]">
-              <div className="rounded-2xl bg-white/15 px-3 py-4 text-center backdrop-blur sm:px-6">
-                <div className="text-2xl font-bold sm:text-3xl">
+              {/* ผู้ประเมิน */}
+
+              <div className="rounded-xl bg-white/15 px-2 py-2.5 text-center backdrop-blur sm:rounded-2xl sm:px-6 sm:py-4">
+                <div className="text-xl font-bold leading-none sm:text-3xl">
                   {completedCount}
-                  <span className="text-base font-medium sm:text-xl">
+
+                  <span className="text-xs font-medium sm:text-xl">
                     {" "}
                     / {totalEvaluators}
                   </span>
                 </div>
 
-                <div className="mt-1 text-xs text-blue-100 sm:text-sm">
+                <div className="mt-1 text-[10px] text-blue-100 sm:text-sm">
                   ผู้ประเมิน
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-white/15 px-3 py-4 text-center backdrop-blur sm:px-6">
-                <div className="text-2xl font-bold sm:text-3xl">
+              {/* คะแนนเฉลี่ย */}
+
+              <div className="rounded-xl bg-white/15 px-2 py-2.5 text-center backdrop-blur sm:rounded-2xl sm:px-6 sm:py-4">
+                <div className="text-xl font-bold leading-none sm:text-3xl">
                   {averagePercent}%
                 </div>
 
-                <div className="mt-1 text-xs text-blue-100 sm:text-sm">
+                <div className="mt-1 text-[10px] text-blue-100 sm:text-sm">
                   คะแนนเฉลี่ย
                 </div>
               </div>
