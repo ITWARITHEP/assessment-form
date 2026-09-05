@@ -956,9 +956,28 @@ export default function ResultsPage({
                   "ไม่พบข้อมูล"}
               </h2>
 
-              <p className="mt-1 text-xs text-blue-100 sm:mt-2 sm:text-base">
-                {targetRole || "-"}
-              </p>
+              <p className="mt-1 max-w-[260px] text-xs leading-5 text-blue-100 sm:mt-2 sm:max-w-none sm:text-base sm:leading-6">
+  {targetRole ? (
+    <>
+      {targetRole.includes(" / ") ? (
+        <>
+          <span className="block">
+            {targetRole.split(" / ")[0]} /
+          </span>
+          <span className="block">
+            {targetRole.split(" / ")[1]}
+          </span>
+        </>
+      ) : (
+        <span className="block">
+          {targetRole}
+        </span>
+      )}
+    </>
+  ) : (
+    "-"
+  )}
+</p>
             </div>
 
             {/* สถิติ */}
