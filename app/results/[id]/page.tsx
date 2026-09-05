@@ -81,195 +81,155 @@ export default function ResultsPage({
 
         /*
          * =====================================================
-         * ตรวจสอบผู้ใช้งาน
+         * ADMIN ONLY
          * =====================================================
          */
-        const savedUser =
-          localStorage.getItem(
-            "assessment_user"
-          );
 
-        if (!savedUser) {
-          window.location.href = "/";
-          return;
-        }
+        const adminAccess = sessionStorage.getItem(
+          "assessment_admin_access"
+        );
 
-        const currentUser =
-          employees.find(
-            (employee) =>
-              employee.id === savedUser
-          );
-
-        if (!currentUser) {
-          localStorage.removeItem(
-            "assessment_user"
-          );
-
-          window.location.href = "/";
+        if (adminAccess !== "true") {
+          window.location.href = "/dashboard";
           return;
         }
 
         /*
          * =====================================================
-         * หาข้อมูลบุคคลที่ถูกประเมิน
+         * หาข้อมูลผู้ถูกประเมิน
          * =====================================================
          */
-        const target =
-          employees.find(
-            (employee) =>
-              employee.id === id
-          );
 
-        const isHeadquarters =
-          id.startsWith("hq-");
+        const employeeTarget = employees.find(
+          (employee) => employee.id === id
+        );
 
-        if (isHeadquarters) {
-          const hq =
-            (await import("@/data/employees")).headquarters[
-              Number(
-                id.replace("hq-", "")
-              ) - 1
-            ];
+        if (employeeTarget) {
+          setTargetName(employeeTarget.name);
+          setTargetRole(employeeTarget.roleName);
+        } else if (id.startsWith("hq-")) {
+          const index = Number(id.replace("hq-", "")) - 1;
 
-          setTargetName(
-            hq || "ฝ่ายสำนักงานใหญ่"
-          );
+          const headquartersTarget = headquarters[index];
 
-          setTargetRole(
-            "ฝ่ายสำนักงานใหญ่"
-          );
-        } else if (target) {
-          setTargetName(
-            target.name
-          );
-
-          setTargetRole(
-            target.roleName
-          );
+          if (headquartersTarget) {
+            setTargetName(headquartersTarget);
+            setTargetRole("ฝ่ายสำนักงานใหญ่");
+          }
         }
 
         /*
          * =====================================================
-         * หาผู้ที่มีสิทธิ์ประเมินบุคคลนี้ทั้งหมด
+         * ผู้มีสิทธิ์ประเมินบุคคลนี้
          * =====================================================
          */
+
         const evaluators =
           getEvaluationEvaluators(id);
 
         /*
          * =====================================================
-         * โหลดผลจาก Supabase เท่านั้น
+         * โหลดผลจาก SUPABASE เท่านั้น
          * =====================================================
          */
-        const { data, error } =
-          await supabase
-            .from(
-              "assessment_results"
-            )
-            .select(
-              `
-                id,
-                evaluator_id,
-                evaluator_name,
-                evaluator_role,
-                target_id,
-                target_name,
-                target_role,
-                form_type,
-                answers,
-                total_score,
-                max_score,
-                suggestion,
-                submitted_at
-              `
-            )
-            .eq(
-              "target_id",
-              id
-            );
+
+        let supabaseRows: SupabaseAssessmentRow[] = [];
+
+        const { data, error } = await supabase
+          .from("assessment_results")
+          .select("*")
+          .eq("target_id", id);
 
         if (error) {
           console.error(
             "ไม่สามารถโหลดผลการประเมินจาก Supabase:",
             error
           );
-
-          throw error;
+        } else {
+          supabaseRows =
+            (data as SupabaseAssessmentRow[]) || [];
         }
 
-        const evaluatorResults:
-          EvaluatorResult[] =
-          evaluators.map(
-            (evaluator) => {
-              const row =
-                (data || []).find(
-                  (item) =>
-                    item.evaluator_id ===
-                    evaluator.id
-                );
+        /*
+         * =====================================================
+         * สร้างผลของผู้ประเมินแต่ละคน
+         * =====================================================
+         */
 
-              if (!row) {
-                return {
-                  id: evaluator.id,
-                  name: evaluator.name,
-                  roleName:
-                    evaluator.roleName,
-                  result: null,
-                };
-              }
+        const evaluatorResults: EvaluatorResult[] =
+          evaluators.map((evaluator) => {
+            /*
+             * หาเฉพาะจาก Supabase
+             */
+            const supabaseResult =
+              supabaseRows.find(
+                (row) =>
+                  row.evaluator_id ===
+                    evaluator.id &&
+                  row.target_id === id
+              );
 
-              const result:
-                AssessmentResult = {
-                evaluatorId:
-                  row.evaluator_id,
-
-                evaluatorName:
-                  row.evaluator_name,
-
-                evaluatorRole:
-                  row.evaluator_role,
-
-                targetId:
-                  row.target_id,
-
-                targetName:
-                  row.target_name,
-
-                targetRole:
-                  row.target_role,
-
-                formType:
-                  row.form_type,
-
-                answers:
-                  row.answers || {},
-
-                totalScore:
-                  row.total_score,
-
-                maxScore:
-                  row.max_score,
-
-                suggestion:
-                  row.suggestion || "",
-
-                submittedAt:
-                  row.submitted_at,
-              };
-
+            if (!supabaseResult) {
               return {
                 id: evaluator.id,
                 name: evaluator.name,
-                roleName:
-                  evaluator.roleName,
-                result,
+                roleName: evaluator.roleName,
+                result: null,
               };
             }
-          );
 
-        setResults(
-          evaluatorResults
-        );
+            const result: AssessmentResult = {
+              evaluatorId:
+                supabaseResult.evaluator_id,
+
+              evaluatorName:
+                supabaseResult.evaluator_name,
+
+              evaluatorRole:
+                supabaseResult.evaluator_role,
+
+              targetId:
+                supabaseResult.target_id,
+
+              targetName:
+                supabaseResult.target_name,
+
+              targetRole:
+                supabaseResult.target_role,
+
+              formType:
+                supabaseResult.form_type,
+
+              answers:
+                supabaseResult.answers || {},
+
+              totalScore:
+                Number(
+                  supabaseResult.total_score
+                ) || 0,
+
+              maxScore:
+                Number(
+                  supabaseResult.max_score
+                ) || 0,
+
+              suggestion:
+                supabaseResult.suggestion || "",
+
+              submittedAt:
+                supabaseResult.submitted_at ||
+                supabaseResult.created_at,
+            };
+
+            return {
+              id: evaluator.id,
+              name: evaluator.name,
+              roleName: evaluator.roleName,
+              result,
+            };
+          });
+
+        setResults(evaluatorResults);
       } catch (error) {
         console.error(
           "ไม่สามารถโหลดผลการประเมิน:",
@@ -285,7 +245,7 @@ export default function ResultsPage({
 
   /*
    * =========================================================
-   * เธเธณเธเธงเธเธเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธเน€เธชเธฃเนเธ
+   * จำนวนคนที่ประเมินเสร็จ
    * =========================================================
    */
 
@@ -312,7 +272,7 @@ export default function ResultsPage({
 
   /*
    * =========================================================
-   * เธเธฐเนเธเธเน€เธเธฅเธตเนเธข
+   * คะแนนเฉลี่ย
    * =========================================================
    */
 
@@ -366,21 +326,21 @@ export default function ResultsPage({
 
     /*
      * -------------------------------------------------------
-     * Sheet 1 : เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ
+     * Sheet 1 : ผลการประเมิน
      * -------------------------------------------------------
      */
 
     const rows = results.map((item) => {
       if (!item.result) {
         return {
-          "เธเธนเนเธเธฃเธฐเน€เธกเธดเธ": item.name,
-          "เธ•เธณเนเธซเธเนเธ": item.roleName,
-          "เธชเธ–เธฒเธเธฐ": "เธขเธฑเธเนเธกเนเนเธ”เนเธเธฃเธฐเน€เธกเธดเธ",
-          "เธเธฐเนเธเธ": "",
-          "เธเธฐเนเธเธเน€เธ•เนเธก": "",
-          "เน€เธเธญเธฃเนเน€เธเนเธเธ•เน": "",
-          "เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ": "",
-          "เธเนเธญเน€เธชเธเธญเนเธเธฐ": "",
+          "ผู้ประเมิน": item.name,
+          "ตำแหน่ง": item.roleName,
+          "สถานะ": "ยังไม่ได้ประเมิน",
+          "คะแนน": "",
+          "คะแนนเต็ม": "",
+          "เปอร์เซ็นต์": "",
+          "วันที่ประเมิน": "",
+          "ข้อเสนอแนะ": "",
         };
       }
 
@@ -396,32 +356,32 @@ export default function ResultsPage({
           : 0;
 
       return {
-        "เธเธนเนเธเธฃเธฐเน€เธกเธดเธ":
+        "ผู้ประเมิน":
           result.evaluatorName,
 
-        "เธ•เธณเนเธซเธเนเธ":
+        "ตำแหน่ง":
           result.evaluatorRole,
 
-        "เธชเธ–เธฒเธเธฐ":
-          "เธเธฃเธฐเน€เธกเธดเธเนเธฅเนเธง",
+        "สถานะ":
+          "ประเมินแล้ว",
 
-        "เธเธฐเนเธเธ":
+        "คะแนน":
           result.totalScore,
 
-        "เธเธฐเนเธเธเน€เธ•เนเธก":
+        "คะแนนเต็ม":
           result.maxScore,
 
-        "เน€เธเธญเธฃเนเน€เธเนเธเธ•เน":
+        "เปอร์เซ็นต์":
           `${percent}%`,
 
-        "เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ":
+        "วันที่ประเมิน":
           result.submittedAt
             ? new Date(
                 result.submittedAt
               ).toLocaleString("th-TH")
             : "",
 
-        "เธเนเธญเน€เธชเธเธญเนเธเธฐ":
+        "ข้อเสนอแนะ":
           result.suggestion || "",
       };
     });
@@ -431,7 +391,7 @@ export default function ResultsPage({
 
     /*
      * -------------------------------------------------------
-     * เธเธณเธซเธเธ”เธเธงเธฒเธกเธเธงเนเธฒเธเธเธญเธฅเธฑเธกเธเน
+     * กำหนดความกว้างคอลัมน์
      * -------------------------------------------------------
      */
 
@@ -448,21 +408,24 @@ export default function ResultsPage({
 
     /*
      * -------------------------------------------------------
-     * Sheet 2 : เธชเธฃเธธเธ
+     * Sheet 2 : สรุป
      * -------------------------------------------------------
      */
 
     const summaryRows = [
-      ["เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธเธเธฑเธเธเธฒเธ"],
+      ["ผลการประเมินพนักงาน"],
       [],
-      ["เธเธนเนเธ–เธนเธเธเธฃเธฐเน€เธกเธดเธ", targetName],
-      ["เธ•เธณเนเธซเธเนเธ", targetRole],
+      ["ผู้ถูกประเมิน", targetName],
+      ["ตำแหน่ง", targetRole],
       [],
-      ["เธเธนเนเธเธฃเธฐเน€เธกเธดเธเธ—เธฑเนเธเธซเธกเธ”", totalEvaluators],
-      ["เธเธฃเธฐเน€เธกเธดเธเนเธฅเนเธง", completedCount],
-      ["เธฃเธญเธเธฃเธฐเน€เธกเธดเธ", totalEvaluators - completedCount],
-      ["เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒ", `${progressPercent}%`],
-      ["เธเธฐเนเธเธเน€เธเธฅเธตเนเธข", `${averagePercent}%`],
+      ["ผู้ประเมินทั้งหมด", totalEvaluators],
+      ["ประเมินแล้ว", completedCount],
+      [
+        "รอประเมิน",
+        totalEvaluators - completedCount,
+      ],
+      ["ความคืบหน้า", `${progressPercent}%`],
+      ["คะแนนเฉลี่ย", `${averagePercent}%`],
     ];
 
     const summarySheet =
@@ -477,7 +440,7 @@ export default function ResultsPage({
 
     /*
      * -------------------------------------------------------
-     * เธชเธฃเนเธฒเธ Workbook
+     * สร้าง Workbook
      * -------------------------------------------------------
      */
 
@@ -487,29 +450,29 @@ export default function ResultsPage({
     XLSX.utils.book_append_sheet(
       workbook,
       summarySheet,
-      "เธชเธฃเธธเธ"
+      "สรุป"
     );
 
     XLSX.utils.book_append_sheet(
       workbook,
       worksheet,
-      "เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ"
+      "ผลการประเมิน"
     );
 
     /*
      * -------------------------------------------------------
-     * เธ”เธฒเธงเธเนเนเธซเธฅเธ”เน€เธเนเธ Excel เธเธฃเธดเธ
+     * ดาวน์โหลดเป็น Excel จริง
      * -------------------------------------------------------
      */
 
     const safeName =
       targetName
         .replace(/[\\/:*?"<>|]/g, "")
-        .trim() || "เธเธนเนเธ–เธนเธเธเธฃเธฐเน€เธกเธดเธ";
+        .trim() || "ผู้ถูกประเมิน";
 
     XLSX.writeFile(
       workbook,
-      `เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ_${safeName}.xlsx`
+      `ผลการประเมิน_${safeName}.xlsx`
     );
   };
 
@@ -526,7 +489,7 @@ export default function ResultsPage({
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
           <p className="mt-4 font-semibold text-slate-700">
-            เธเธณเธฅเธฑเธเนเธซเธฅเธ”เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ...
+            กำลังโหลดผลการประเมิน...
           </p>
         </div>
       </main>
@@ -551,7 +514,7 @@ export default function ResultsPage({
             </h1>
 
             <p className="text-xs text-slate-500 sm:text-sm">
-              เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธเธเธฑเธเธเธฒเธ
+              ผลการประเมินพนักงาน
             </p>
           </div>
 
@@ -562,7 +525,7 @@ export default function ResultsPage({
             }}
             className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 sm:px-4 sm:text-sm"
           >
-            โ เธเธฅเธฑเธ Dashboard
+            ← กลับ Dashboard
           </button>
         </div>
       </header>
@@ -574,12 +537,12 @@ export default function ResultsPage({
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               <p className="text-xs text-blue-100 sm:text-sm">
-                เธเธนเนเธ–เธนเธเธเธฃเธฐเน€เธกเธดเธ
+                ผู้ถูกประเมิน
               </p>
 
               <h2 className="mt-1 break-words text-xl font-bold leading-tight sm:text-3xl">
                 {targetName ||
-                  "เนเธกเนเธเธเธเนเธญเธกเธนเธฅ"}
+                  "ไม่พบข้อมูล"}
               </h2>
 
               <p className="mt-2 text-sm text-blue-100 sm:text-base">
@@ -598,7 +561,7 @@ export default function ResultsPage({
                 </div>
 
                 <div className="mt-1 text-xs text-blue-100 sm:text-sm">
-                  เธเธนเนเธเธฃเธฐเน€เธกเธดเธ
+                  ผู้ประเมิน
                 </div>
               </div>
 
@@ -608,7 +571,7 @@ export default function ResultsPage({
                 </div>
 
                 <div className="mt-1 text-xs text-blue-100 sm:text-sm">
-                  เธเธฐเนเธเธเน€เธเธฅเธตเนเธข
+                  คะแนนเฉลี่ย
                 </div>
               </div>
             </div>
@@ -621,17 +584,17 @@ export default function ResultsPage({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-bold text-slate-900">
-                ๐“ เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ
+                📊 ความคืบหน้าการประเมิน
               </h3>
 
               <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-                เธเธณเธเธงเธเธเธนเนเธเธฃเธฐเน€เธกเธดเธเธ—เธตเนเธชเนเธเนเธเธเธเธฃเธฐเน€เธกเธดเธเนเธฅเนเธง
+                จำนวนผู้ประเมินที่ส่งแบบประเมินแล้ว
               </p>
             </div>
 
             <div className="text-lg font-bold text-blue-600 sm:text-xl">
               {completedCount} /{" "}
-              {totalEvaluators} เธเธ
+              {totalEvaluators} คน
             </div>
           </div>
 
@@ -645,7 +608,7 @@ export default function ResultsPage({
           </div>
 
           <div className="mt-2 text-right text-xs text-slate-400 sm:text-sm">
-            {progressPercent}% เน€เธชเธฃเนเธเนเธฅเนเธง
+            {progressPercent}% เสร็จแล้ว
           </div>
         </section>
 
@@ -654,11 +617,11 @@ export default function ResultsPage({
         <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
-              ๐‘ฅ เธฃเธฒเธขเธเธทเนเธญเธเธนเนเธเธฃเธฐเน€เธกเธดเธ
+              👥 รายชื่อผู้ประเมิน
             </h2>
 
             <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-              เธเธฅเธดเธเธ”เธนเธเธฐเนเธเธเธฃเธฒเธขเธเนเธญเธเธญเธเธเธนเนเธเธฃเธฐเน€เธกเธดเธเนเธ•เนเธฅเธฐเธเธ
+              คลิกดูคะแนนรายข้อของผู้ประเมินแต่ละคน
             </p>
           </div>
 
@@ -666,7 +629,7 @@ export default function ResultsPage({
             onClick={exportExcel}
             className="w-full rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] sm:w-auto"
           >
-            ๐“ Export Excel
+            📊 Export Excel
           </button>
         </div>
 
@@ -695,7 +658,7 @@ export default function ResultsPage({
                     : "border-slate-200"
                 }`}
               >
-                {/* เธเธนเนเธเธฃเธฐเน€เธกเธดเธ */}
+                {/* ผู้ประเมิน */}
 
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div
@@ -705,7 +668,7 @@ export default function ResultsPage({
                         : "bg-slate-100"
                     }`}
                   >
-                    {result ? "๐‘ค" : "โณ"}
+                    {result ? "👤" : "⏳"}
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -721,13 +684,13 @@ export default function ResultsPage({
 
                 {result ? (
                   <>
-                    {/* เธเธฐเนเธเธ */}
+                    {/* คะแนน */}
 
                     <div className="mt-4 rounded-2xl bg-slate-50 p-4 sm:mt-5">
                       <div className="flex items-end justify-between gap-3">
                         <div>
                           <p className="text-xs text-slate-500 sm:text-sm">
-                            เธเธฐเนเธเธเธ—เธตเนเนเธ”เน
+                            คะแนนที่ได้
                           </p>
 
                           <p className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
@@ -747,17 +710,17 @@ export default function ResultsPage({
                           </p>
 
                           <p className="text-[11px] text-slate-400 sm:text-xs">
-                            เธเธฐเนเธเธเธเธฃเธฐเน€เธกเธดเธ
+                            คะแนนประเมิน
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* เธชเธ–เธฒเธเธฐ */}
+                    {/* สถานะ */}
 
                     <div className="mt-3 flex flex-col gap-1 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                       <span>
-                        โ… เธเธฃเธฐเน€เธกเธดเธเนเธฅเนเธง
+                        ✅ ประเมินแล้ว
                       </span>
 
                       <span>
@@ -771,7 +734,7 @@ export default function ResultsPage({
                       </span>
                     </div>
 
-                    {/* เธ”เธนเธฃเธฒเธขเธเนเธญ */}
+                    {/* ดูรายข้อ */}
 
                     <button
                       onClick={() => {
@@ -780,29 +743,29 @@ export default function ResultsPage({
                       }}
                       className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3.5 font-semibold text-white transition hover:bg-blue-700 active:scale-[0.99]"
                     >
-                      ๐‘ เธ”เธนเธเธฐเนเธเธเธฃเธฒเธขเธเนเธญ โ’
+                      👁 ดูคะแนนรายข้อ →
                     </button>
                   </>
                 ) : (
                   <>
-                    {/* เธขเธฑเธเนเธกเนเธเธฃเธฐเน€เธกเธดเธ */}
+                    {/* ยังไม่ประเมิน */}
 
                     <div className="mt-4 rounded-2xl bg-slate-50 p-5 text-center sm:mt-5">
                       <div className="text-3xl">
-                        โณ
+                        ⏳
                       </div>
 
                       <p className="mt-2 font-semibold text-slate-600">
-                        เธขเธฑเธเนเธกเนเนเธ”เนเธเธฃเธฐเน€เธกเธดเธ
+                        ยังไม่ได้ประเมิน
                       </p>
 
                       <p className="mt-1 text-xs text-slate-400">
-                        เธฃเธญเธเธนเนเธเธฃเธฐเน€เธกเธดเธเธชเนเธเนเธเธเธเธฃเธฐเน€เธกเธดเธ
+                        รอผู้ประเมินส่งแบบประเมิน
                       </p>
                     </div>
 
                     <div className="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-center text-xs text-slate-400 sm:mt-4 sm:text-sm">
-                      โณ เธฃเธญเธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ
+                      ⏳ รอผลการประเมิน
                     </div>
                   </>
                 )}
@@ -816,15 +779,15 @@ export default function ResultsPage({
         {results.length === 0 && (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-12">
             <div className="text-5xl">
-              ๐“
+              📋
             </div>
 
             <h3 className="mt-4 text-lg font-bold text-slate-800 sm:text-xl">
-              เธขเธฑเธเนเธกเนเธกเธตเธเธนเนเธเธฃเธฐเน€เธกเธดเธ
+              ยังไม่มีผู้ประเมิน
             </h3>
 
             <p className="mt-2 text-sm text-slate-500">
-              เนเธกเนเธเธเธเธนเนเธ—เธตเนเธกเธตเธชเธดเธ—เธเธดเนเธเธฃเธฐเน€เธกเธดเธเธเธธเธเธเธฅเธเธตเน
+              ไม่พบผู้ที่มีสิทธิ์ประเมินบุคคลนี้
             </p>
           </div>
         )}
