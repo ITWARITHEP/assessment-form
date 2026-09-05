@@ -275,9 +275,22 @@ export default function DashboardPage() {
                   ผู้ประเมิน
                 </p>
 
-                <h2 className="mt-1 text-2xl font-bold">
-                  {evaluator.name}
-                </h2>
+                <h2 className="mt-0.5 text-[17px] font-bold leading-6 text-white sm:mt-1 sm:text-2xl sm:leading-7">
+  {evaluator.id.startsWith("exec-") ? (
+    <>
+      <span className="block">
+        {evaluator.name.split(" ").slice(0, -1).join(" ")}
+      </span>
+      <span className="block">
+        {evaluator.name.split(" ").slice(-1)}
+      </span>
+    </>
+  ) : (
+    <span className="break-words">
+      {evaluator.name}
+    </span>
+  )}
+</h2>
 
                 <p className="mt-1 text-xs leading-5 text-blue-100 sm:mt-1 sm:text-sm sm:leading-6">
   {evaluator.id === "exec-002" && (

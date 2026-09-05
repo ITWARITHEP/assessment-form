@@ -275,7 +275,7 @@ export const employees: Employee[] = [
   // อีสานใต้ 1/2
   {
     id: "branch-007",
-    name: "นายนายจิรศักดิ์ แสนสะอาด",
+    name: "นายจิรศักดิ์ แสนสะอาด",
     role: "branch_manager",
     roleName: "ผู้จัดการสาขาวารีเทพ ศรีสะเกษ",
     region: "อีสานใต้ 1/2",
