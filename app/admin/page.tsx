@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import * as XLSX from "xlsx";
+
 import { employees, headquarters } from "@/data/employees";
 import { getEvaluationEvaluators } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -113,8 +115,7 @@ function getRoleLabel(role: string) {
 }
 
 export default function AdminPage() {
-  const [mounted, setMounted] =
-    useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const [overviews, setOverviews] =
     useState<TargetOverview[]>([]);
@@ -127,6 +128,9 @@ export default function AdminPage() {
 
   const [loadingData, setLoadingData] =
     useState(true);
+
+  const [exporting, setExporting] =
+    useState(false);
 
   /*
    * =========================================================
@@ -174,8 +178,7 @@ export default function AdminPage() {
               id: `hq-${index + 1}`,
               name,
               role: "department",
-              roleName:
-                "ฝ่ายสำนักงานใหญ่",
+              roleName: "ฝ่ายสำนักงานใหญ่",
               region: "",
               branch: "",
             })
@@ -580,6 +583,184 @@ export default function AdminPage() {
 
   /*
    * =========================================================
+   * EXPORT EXCEL
+   * =========================================================
+   */
+
+  const exportToExcel = () => {
+    try {
+      setExporting(true);
+
+      /*
+       * -----------------------------------------------------
+       * เอาผลประเมินทั้งหมดที่ Admin มองเห็น
+       * -----------------------------------------------------
+       */
+
+      const rows = overviews.flatMap(
+        (item) =>
+          item.results.map(
+            (result) => ({
+              "ผู้ถูกประเมิน":
+                item.name,
+
+              "ตำแหน่งผู้ถูกประเมิน":
+                getRoleLabel(
+                  item.role
+                ),
+
+              "ตำแหน่ง":
+                item.roleName || "",
+
+              "เขต":
+                item.region || "",
+
+              "สาขา":
+                item.branch || "",
+
+              "ผู้ประเมิน":
+                result.evaluatorName ||
+                "",
+
+              "ตำแหน่งผู้ประเมิน":
+                result.evaluatorRole ||
+                "",
+
+              "แบบประเมิน":
+                getFormLabel(
+                  result.formType
+                ),
+
+              "คะแนนรวม":
+                result.totalScore,
+
+              "คะแนนเต็ม":
+                result.maxScore,
+
+              "เปอร์เซ็นต์":
+                result.maxScore > 0
+                  ? Math.round(
+                      (result.totalScore /
+                        result.maxScore) *
+                        100
+                    )
+                  : 0,
+
+              "ข้อเสนอแนะ":
+                result.suggestion ||
+                "",
+
+              "วันที่ประเมิน":
+                formatDate(
+                  result.submittedAt
+                ),
+            })
+          )
+      );
+
+      if (rows.length === 0) {
+        alert(
+          "ยังไม่มีข้อมูลสำหรับ Export"
+        );
+
+        return;
+      }
+
+      /*
+       * -----------------------------------------------------
+       * สร้าง Worksheet
+       * -----------------------------------------------------
+       */
+
+      const worksheet =
+        XLSX.utils.json_to_sheet(
+          rows
+        );
+
+      /*
+       * -----------------------------------------------------
+       * ตั้งความกว้างคอลัมน์
+       * -----------------------------------------------------
+       */
+
+      worksheet["!cols"] = [
+        { wch: 28 },
+        { wch: 24 },
+        { wch: 28 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 32 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 40 },
+        { wch: 24 },
+      ];
+
+      /*
+       * -----------------------------------------------------
+       * สร้าง Workbook
+       * -----------------------------------------------------
+       */
+
+      const workbook =
+        XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "ผลการประเมิน"
+      );
+
+      /*
+       * -----------------------------------------------------
+       * ชื่อไฟล์
+       * -----------------------------------------------------
+       */
+
+      const now =
+        new Date();
+
+      const date =
+        now.toLocaleDateString(
+          "sv-SE",
+          {
+            timeZone:
+              "Asia/Bangkok",
+          }
+        );
+
+      const fileName =
+        `ผลการประเมินพนักงาน_${date}.xlsx`;
+
+      /*
+       * -----------------------------------------------------
+       * ดาวน์โหลด Excel จริง
+       * -----------------------------------------------------
+       */
+
+      XLSX.writeFile(
+        workbook,
+        fileName
+      );
+    } catch (error) {
+      console.error(
+        "❌ EXPORT EXCEL ERROR:",
+        error
+      );
+
+      alert(
+        "ไม่สามารถ Export Excel ได้ กรุณาลองใหม่"
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /*
+   * =========================================================
    * LOADING
    * =========================================================
    */
@@ -757,6 +938,24 @@ export default function AdminPage() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={exportToExcel}
+                disabled={
+                  exporting ||
+                  overviews.every(
+                    (item) =>
+                      item.results.length ===
+                      0
+                  )
+                }
+                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {exporting
+                  ? "⏳ กำลัง Export..."
+                  : "📊 Export Excel"}
+              </button>
+
               <input
                 value={search}
                 onChange={(event) =>
@@ -1173,7 +1372,7 @@ function FilterButton({
 }: {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button
