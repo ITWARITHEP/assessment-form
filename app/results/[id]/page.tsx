@@ -1094,9 +1094,37 @@ export default function ResultsPage({
                       {item.name}
                     </h3>
 
-                    <p className="mt-1 text-sm text-blue-600">
-                      {item.roleName}
-                    </p>
+                    <p className="mt-1 text-sm leading-5 text-blue-600">
+  {item.roleName.includes("\n") ? (
+    item.roleName.split(/\r?\n/).map((line, index) => (
+      <span
+        key={index}
+        className="block whitespace-nowrap"
+      >
+        {line.trim()}
+      </span>
+    ))
+  ) : item.roleName.includes("ประธานเขต") ? (
+    <>
+      <span className="block whitespace-nowrap">
+        รองประธานกรรมการบริหาร
+      </span>
+      <span className="block whitespace-nowrap">
+        {item.roleName.replace(
+          "รองประธานกรรมการบริหาร",
+          ""
+        ).trim().replace(
+          "ประธานเขต",
+          "ประธาน เขต"
+        )}
+      </span>
+    </>
+  ) : (
+    <span className="block">
+      {item.roleName}
+    </span>
+  )}
+</p>
                   </div>
                 </div>
 
