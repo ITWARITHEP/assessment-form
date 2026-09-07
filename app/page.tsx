@@ -282,7 +282,7 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-2xl font-bold text-slate-900 sm:text-4xl">
-            ระบบประเมินพนักงาน
+            ระบบประเมินการปฏิบัติงาน
           </h1>
 
           <p className="mt-2 text-sm text-slate-500 sm:text-base">
