@@ -35,10 +35,20 @@ type Target = {
   branch?: string;
 };
 
+type PendingEvaluator = {
+  id: string;
+  name: string;
+  role: string;
+  roleName: string;
+  region?: string;
+  branch?: string;
+};
+
 type TargetOverview = Target & {
   totalEvaluators: number;
   completedEvaluators: number;
   pendingEvaluators: number;
+  pendingPeople: PendingEvaluator[];
   results: Result[];
 };
 
@@ -63,14 +73,11 @@ function formatDate(date?: string) {
   if (!date) return "-";
 
   try {
-    return new Date(date).toLocaleDateString(
-      "th-TH",
-      {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }
-    );
+    return new Date(date).toLocaleDateString("th-TH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   } catch {
     return "-";
   }
@@ -80,16 +87,12 @@ function getRoleIcon(role: string) {
   switch (role) {
     case "director":
       return "🏢";
-
     case "area_manager":
       return "🌎";
-
     case "branch_manager":
       return "🏪";
-
     case "department":
       return "🏛️";
-
     default:
       return "👤";
   }
@@ -99,16 +102,12 @@ function getRoleLabel(role: string) {
   switch (role) {
     case "director":
       return "ผู้อำนวยการฝ่าย";
-
     case "area_manager":
       return "ผู้จัดการเขต";
-
     case "branch_manager":
       return "ผู้จัดการสาขา";
-
     case "department":
       return "ฝ่ายสำนักงานใหญ่";
-
     default:
       return role;
   }
@@ -117,20 +116,17 @@ function getRoleLabel(role: string) {
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
 
-  const [overviews, setOverviews] =
-    useState<TargetOverview[]>([]);
+  const [overviews, setOverviews] = useState<TargetOverview[]>([]);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
 
-  const [filter, setFilter] =
-    useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>("all");
 
-  const [loadingData, setLoadingData] =
-    useState(true);
+  const [loadingData, setLoadingData] = useState(true);
 
-  const [exporting, setExporting] =
-    useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const [showNotStarted, setShowNotStarted] = useState(false);
 
   /*
    * =========================================================
@@ -145,55 +141,32 @@ export default function AdminPage() {
 
     const loadData = async () => {
       try {
-        /*
-         * -----------------------------------------------------
-         * ผู้ถูกประเมินจาก employees
-         * -----------------------------------------------------
-         */
+        const employeeTargets: Target[] = employees
+          .filter((employee) => employee.role !== "executive")
+          .map((employee) => ({
+            id: employee.id,
+            name: employee.name,
+            role: employee.role,
+            roleName: employee.roleName,
+            region: employee.region,
+            branch: employee.branch,
+          }));
 
-        const employeeTargets: Target[] =
-          employees
-            .filter(
-              (employee) =>
-                employee.role !== "executive"
-            )
-            .map((employee) => ({
-              id: employee.id,
-              name: employee.name,
-              role: employee.role,
-              roleName: employee.roleName,
-              region: employee.region,
-              branch: employee.branch,
-            }));
-
-        /*
-         * -----------------------------------------------------
-         * ฝ่ายสำนักงานใหญ่
-         * -----------------------------------------------------
-         */
-
-        const hqTargets: Target[] =
-          headquarters.map(
-            (name, index) => ({
-              id: `hq-${index + 1}`,
-              name,
-              role: "department",
-              roleName: "ฝ่ายสำนักงานใหญ่",
-              region: "",
-              branch: "",
-            })
-          );
+        const hqTargets: Target[] = headquarters.map(
+          (name, index) => ({
+            id: `hq-${index + 1}`,
+            name,
+            role: "department",
+            roleName: "ฝ่ายสำนักงานใหญ่",
+            region: "",
+            branch: "",
+          })
+        );
 
         const allTargets = [
           ...employeeTargets,
           ...hqTargets,
         ];
-
-        /*
-         * -----------------------------------------------------
-         * ดึงผลประเมินจาก SUPABASE
-         * -----------------------------------------------------
-         */
 
         const {
           data,
@@ -210,128 +183,100 @@ export default function AdminPage() {
             "❌ ADMIN SUPABASE LOAD ERROR:",
             error
           );
-
           return;
         }
 
-        /*
-         * -----------------------------------------------------
-         * แปลงข้อมูลจาก Supabase
-         * snake_case -> camelCase
-         * -----------------------------------------------------
-         */
-
         const allResults: Result[] =
-          (data || []).map(
-            (row) => ({
-              evaluatorId:
-                row.evaluator_id,
-
-              evaluatorName:
-                row.evaluator_name,
-
-              evaluatorRole:
-                row.evaluator_role,
-
-              targetId:
-                row.target_id,
-
-              targetName:
-                row.target_name,
-
-              targetRole:
-                row.target_role,
-
-              formType:
-                row.form_type,
-
-              answers:
-                row.answers || {},
-
-              totalScore:
-                Number(
-                  row.total_score || 0
-                ),
-
-              maxScore:
-                Number(
-                  row.max_score || 0
-                ),
-
-              suggestion:
-                row.suggestion || "",
-
-              submittedAt:
-                row.submitted_at,
-            })
-          );
-
-        /*
-         * -----------------------------------------------------
-         * รวมตามผู้ถูกประเมิน
-         * -----------------------------------------------------
-         */
+          (data || []).map((row) => ({
+            evaluatorId: row.evaluator_id,
+            evaluatorName: row.evaluator_name,
+            evaluatorRole: row.evaluator_role,
+            targetId: row.target_id,
+            targetName: row.target_name,
+            targetRole: row.target_role,
+            formType: row.form_type,
+            answers: row.answers || {},
+            totalScore: Number(row.total_score || 0),
+            maxScore: Number(row.max_score || 0),
+            suggestion: row.suggestion || "",
+            submittedAt: row.submitted_at,
+          }));
 
         const resultData: TargetOverview[] =
-          allTargets.map(
-            (target) => {
-              const evaluators =
-                getEvaluationEvaluators(
-                  target.id
-                );
+          allTargets.map((target) => {
+            const evaluators =
+              getEvaluationEvaluators(target.id);
 
-              const targetResults =
-                allResults.filter(
-                  (result) =>
-                    result.targetId ===
-                    target.id
-                );
+            const targetResults =
+              allResults.filter(
+                (result) =>
+                  result.targetId === target.id
+              );
 
-              /*
-               * เอาเฉพาะ evaluator ที่มีสิทธิ์ประเมินจริง
-               */
-              const uniqueResults =
-                evaluators
-                  .map(
-                    (evaluator) =>
-                      targetResults.find(
-                        (result) =>
-                          result.evaluatorId ===
-                          evaluator.id
-                      )
+            const uniqueResults =
+              evaluators
+                .map((evaluator) =>
+                  targetResults.find(
+                    (result) =>
+                      result.evaluatorId ===
+                      evaluator.id
                   )
-                  .filter(
-                    (
-                      result
-                    ): result is Result =>
-                      Boolean(result)
-                  );
+                )
+                .filter(
+                  (
+                    result
+                  ): result is Result =>
+                    Boolean(result)
+                );
 
-              const totalEvaluators =
-                evaluators.length;
+            const completedIds =
+              new Set(
+                uniqueResults
+                  .map(
+                    (result) =>
+                      result.evaluatorId
+                  )
+                  .filter(Boolean)
+              );
 
-              const completedEvaluators =
-                uniqueResults.length;
+            const pendingPeople: PendingEvaluator[] =
+              evaluators
+                .filter(
+                  (evaluator) =>
+                    !completedIds.has(
+                      evaluator.id
+                    )
+                )
+                .map((evaluator) => ({
+                  id: evaluator.id,
+                  name: evaluator.name,
+                  role: evaluator.role,
+                  roleName:
+                    evaluator.roleName,
+                  region: evaluator.region,
+                  branch: evaluator.branch,
+                }));
 
-              return {
-                ...target,
+            const totalEvaluators =
+              evaluators.length;
 
-                totalEvaluators,
+            const completedEvaluators =
+              uniqueResults.length;
 
-                completedEvaluators,
-
-                pendingEvaluators:
-                  Math.max(
-                    totalEvaluators -
-                      completedEvaluators,
-                    0
-                  ),
-
-                results:
-                  uniqueResults,
-              };
-            }
-          );
+            return {
+              ...target,
+              totalEvaluators,
+              completedEvaluators,
+              pendingEvaluators:
+                Math.max(
+                  totalEvaluators -
+                    completedEvaluators,
+                  0
+                ),
+              pendingPeople,
+              results: uniqueResults,
+            };
+          });
 
         if (alive) {
           setOverviews(resultData);
@@ -350,23 +295,11 @@ export default function AdminPage() {
 
     loadData();
 
-    /*
-     * ---------------------------------------------------------
-     * รีเฟรชจาก Supabase ทุก 2 วินาที
-     * ---------------------------------------------------------
-     */
-
     const interval =
       window.setInterval(
         loadData,
         2000
       );
-
-    /*
-     * ---------------------------------------------------------
-     * โหลดใหม่เมื่อกลับเข้าหน้า
-     * ---------------------------------------------------------
-     */
 
     const handleFocus = () => {
       loadData();
@@ -393,77 +326,139 @@ export default function AdminPage() {
 
   /*
    * =========================================================
+   * PEOPLE WHO HAVE NEVER STARTED AN ASSESSMENT
+   * =========================================================
+   */
+
+  const notStartedEvaluators =
+    useMemo(() => {
+      const eligibleMap =
+        new Map<
+          string,
+          PendingEvaluator
+        >();
+
+      /*
+       * รวบรวมทุกคนที่มีสิทธิ์เป็นผู้ประเมิน
+       */
+      overviews.forEach((target) => {
+        target.pendingPeople.forEach(
+          (person) => {
+            if (
+              !eligibleMap.has(
+                person.id
+              )
+            ) {
+              eligibleMap.set(
+                person.id,
+                person
+              );
+            }
+          }
+        );
+      });
+
+      /*
+       * คนที่มีผลประเมินแล้วอย่างน้อย 1 รายการ
+       */
+      const startedIds =
+        new Set(
+          overviews
+            .flatMap(
+              (item) =>
+                item.results
+            )
+            .map(
+              (result) =>
+                result.evaluatorId
+            )
+            .filter(Boolean)
+        );
+
+      return Array.from(
+        eligibleMap.values()
+      )
+        .filter(
+          (person) =>
+            !startedIds.has(
+              person.id
+            )
+        )
+        .sort((a, b) =>
+          a.name.localeCompare(
+            b.name,
+            "th"
+          )
+        );
+    }, [overviews]);
+
+  /*
+   * =========================================================
    * FILTER
    * =========================================================
    */
 
-  const filtered =
-    useMemo(() => {
-      const keyword =
-        search
-          .trim()
-          .toLowerCase();
+  const filtered = useMemo(() => {
+    const keyword =
+      search
+        .trim()
+        .toLowerCase();
 
-      return overviews.filter(
-        (item) => {
-          const matchesSearch =
-            !keyword ||
-            item.name
-              .toLowerCase()
-              .includes(keyword) ||
-            item.roleName
-              .toLowerCase()
-              .includes(keyword) ||
-            item.region
-              ?.toLowerCase()
-              .includes(keyword) ||
-            item.branch
-              ?.toLowerCase()
-              .includes(keyword);
+    return overviews.filter(
+      (item) => {
+        const matchesSearch =
+          !keyword ||
+          item.name
+            .toLowerCase()
+            .includes(keyword) ||
+          item.roleName
+            .toLowerCase()
+            .includes(keyword) ||
+          item.region
+            ?.toLowerCase()
+            .includes(keyword) ||
+          item.branch
+            ?.toLowerCase()
+            .includes(keyword);
 
-          const isComplete =
-            item.totalEvaluators > 0 &&
-            item.completedEvaluators ===
-              item.totalEvaluators;
+        const isComplete =
+          item.totalEvaluators > 0 &&
+          item.completedEvaluators ===
+            item.totalEvaluators;
 
-          const isPending =
-            item.completedEvaluators ===
-            0;
+        const isPending =
+          item.completedEvaluators === 0;
 
-          const isProgress =
-            item.completedEvaluators >
-              0 &&
-            item.completedEvaluators <
-              item.totalEvaluators;
+        const isProgress =
+          item.completedEvaluators > 0 &&
+          item.completedEvaluators <
+            item.totalEvaluators;
 
-          let matchesFilter = true;
+        let matchesFilter = true;
 
-          if (filter === "complete") {
-            matchesFilter =
-              isComplete;
-          }
-
-          if (filter === "progress") {
-            matchesFilter =
-              isProgress;
-          }
-
-          if (filter === "pending") {
-            matchesFilter =
-              isPending;
-          }
-
-          return (
-            matchesSearch &&
-            matchesFilter
-          );
+        if (filter === "complete") {
+          matchesFilter = isComplete;
         }
-      );
-    }, [
-      overviews,
-      search,
-      filter,
-    ]);
+
+        if (filter === "progress") {
+          matchesFilter = isProgress;
+        }
+
+        if (filter === "pending") {
+          matchesFilter = isPending;
+        }
+
+        return (
+          matchesSearch &&
+          matchesFilter
+        );
+      }
+    );
+  }, [
+    overviews,
+    search,
+    filter,
+  ]);
 
   /*
    * =========================================================
@@ -471,61 +466,57 @@ export default function AdminPage() {
    * =========================================================
    */
 
-  const stats =
-    useMemo(() => {
-      const total =
-        overviews.length;
+  const stats = useMemo(() => {
+    const total =
+      overviews.length;
 
-      const complete =
-        overviews.filter(
-          (item) =>
-            item.totalEvaluators >
-              0 &&
-            item.completedEvaluators ===
-              item.totalEvaluators
-        ).length;
+    const complete =
+      overviews.filter(
+        (item) =>
+          item.totalEvaluators > 0 &&
+          item.completedEvaluators ===
+            item.totalEvaluators
+      ).length;
 
-      const progress =
-        overviews.filter(
-          (item) =>
-            item.completedEvaluators >
-              0 &&
-            item.completedEvaluators <
-              item.totalEvaluators
-        ).length;
+    const progress =
+      overviews.filter(
+        (item) =>
+          item.completedEvaluators > 0 &&
+          item.completedEvaluators <
+            item.totalEvaluators
+      ).length;
 
-      const pending =
-        overviews.filter(
-          (item) =>
-            item.completedEvaluators ===
-            0
-        ).length;
+    const pending =
+      overviews.filter(
+        (item) =>
+          item.completedEvaluators === 0
+      ).length;
 
-      const totalRequired =
-        overviews.reduce(
-          (sum, item) =>
-            sum +
-            item.totalEvaluators,
-          0
-        );
+    const totalRequired =
+      overviews.reduce(
+        (sum, item) =>
+          sum +
+          item.totalEvaluators,
+        0
+      );
 
-      const totalCompleted =
-        overviews.reduce(
-          (sum, item) =>
-            sum +
-            item.completedEvaluators,
-          0
-        );
+    const totalCompleted =
+      overviews.reduce(
+        (sum, item) =>
+          sum +
+          item.completedEvaluators,
+        0
+      );
 
-      return {
-        total,
-        complete,
-        progress,
-        pending,
-        totalRequired,
-        totalCompleted,
-      };
-    }, [overviews]);
+    return {
+      total,
+      complete,
+      progress,
+      pending,
+      totalRequired,
+      totalCompleted,
+    };
+  }, [overviews]);
 
   /*
    * =========================================================
@@ -533,35 +524,30 @@ export default function AdminPage() {
    * =========================================================
    */
 
-  const roleGroups =
-    useMemo(() => {
-      return [
-        {
-          key: "director",
-          title:
-            "ผู้อำนวยการฝ่าย",
-          icon: "🏢",
-        },
-        {
-          key: "area_manager",
-          title:
-            "ผู้จัดการเขต",
-          icon: "🌎",
-        },
-        {
-          key: "branch_manager",
-          title:
-            "ผู้จัดการสาขา",
-          icon: "🏪",
-        },
-        {
-          key: "department",
-          title:
-            "ฝ่ายสำนักงานใหญ่",
-          icon: "🏛️",
-        },
-      ];
-    }, []);
+  const roleGroups = useMemo(() => {
+    return [
+      {
+        key: "director",
+        title: "ผู้อำนวยการฝ่าย",
+        icon: "🏢",
+      },
+      {
+        key: "area_manager",
+        title: "ผู้จัดการเขต",
+        icon: "🌎",
+      },
+      {
+        key: "branch_manager",
+        title: "ผู้จัดการสาขา",
+        icon: "🏪",
+      },
+      {
+        key: "department",
+        title: "ฝ่ายสำนักงานใหญ่",
+        icon: "🏛️",
+      },
+    ];
+  }, []);
 
   /*
    * =========================================================
@@ -583,6 +569,57 @@ export default function AdminPage() {
 
   /*
    * =========================================================
+   * COPY NOT STARTED LIST
+   * =========================================================
+   */
+
+  const copyNotStartedList =
+    async () => {
+      if (
+        notStartedEvaluators.length ===
+        0
+      ) {
+        return;
+      }
+
+      const text =
+        [
+          "รายชื่อผู้ที่ยังไม่ได้เริ่มทำแบบประเมิน",
+          `จำนวน ${notStartedEvaluators.length} คน`,
+          "",
+          ...notStartedEvaluators.map(
+            (person, index) =>
+              `${index + 1}. ${person.name} | ${getRoleLabel(
+                person.role
+              )} | ${person.roleName}${
+                person.region
+                  ? ` | เขต ${person.region}`
+                  : ""
+              }${
+                person.branch
+                  ? ` | ${person.branch}`
+                  : ""
+              }`
+          ),
+        ].join("\n");
+
+      try {
+        await navigator.clipboard.writeText(
+          text
+        );
+
+        alert(
+          "คัดลอกรายชื่อเรียบร้อยแล้ว"
+        );
+      } catch {
+        alert(
+          "ไม่สามารถคัดลอกได้ กรุณาลองใหม่"
+        );
+      }
+    };
+
+  /*
+   * =========================================================
    * EXPORT EXCEL
    * =========================================================
    */
@@ -591,97 +628,79 @@ export default function AdminPage() {
     try {
       setExporting(true);
 
-      /*
-       * -----------------------------------------------------
-       * เอาผลประเมินทั้งหมดที่ Admin มองเห็น
-       * -----------------------------------------------------
-       */
+      const rows =
+        overviews.flatMap(
+          (item) =>
+            item.results.map(
+              (result) => ({
+                "ผู้ถูกประเมิน":
+                  item.name,
 
-      const rows = overviews.flatMap(
-        (item) =>
-          item.results.map(
-            (result) => ({
-              "ผู้ถูกประเมิน":
-                item.name,
+                "ตำแหน่งผู้ถูกประเมิน":
+                  getRoleLabel(
+                    item.role
+                  ),
 
-              "ตำแหน่งผู้ถูกประเมิน":
-                getRoleLabel(
-                  item.role
-                ),
+                "ตำแหน่ง":
+                  item.roleName || "",
 
-              "ตำแหน่ง":
-                item.roleName || "",
+                "เขต":
+                  item.region || "",
 
-              "เขต":
-                item.region || "",
+                "สาขา":
+                  item.branch || "",
 
-              "สาขา":
-                item.branch || "",
+                "ผู้ประเมิน":
+                  result.evaluatorName ||
+                  "",
 
-              "ผู้ประเมิน":
-                result.evaluatorName ||
-                "",
+                "ตำแหน่งผู้ประเมิน":
+                  result.evaluatorRole ||
+                  "",
 
-              "ตำแหน่งผู้ประเมิน":
-                result.evaluatorRole ||
-                "",
+                "แบบประเมิน":
+                  getFormLabel(
+                    result.formType
+                  ),
 
-              "แบบประเมิน":
-                getFormLabel(
-                  result.formType
-                ),
+                "คะแนนรวม":
+                  result.totalScore,
 
-              "คะแนนรวม":
-                result.totalScore,
+                "คะแนนเต็ม":
+                  result.maxScore,
 
-              "คะแนนเต็ม":
-                result.maxScore,
+                "เปอร์เซ็นต์":
+                  result.maxScore > 0
+                    ? Math.round(
+                        (result.totalScore /
+                          result.maxScore) *
+                          100
+                      )
+                    : 0,
 
-              "เปอร์เซ็นต์":
-                result.maxScore > 0
-                  ? Math.round(
-                      (result.totalScore /
-                        result.maxScore) *
-                        100
-                    )
-                  : 0,
+                "ข้อเสนอแนะ":
+                  result.suggestion ||
+                  "",
 
-              "ข้อเสนอแนะ":
-                result.suggestion ||
-                "",
-
-              "วันที่ประเมิน":
-                formatDate(
-                  result.submittedAt
-                ),
-            })
-          )
-      );
+                "วันที่ประเมิน":
+                  formatDate(
+                    result.submittedAt
+                  ),
+              })
+            )
+        );
 
       if (rows.length === 0) {
         alert(
           "ยังไม่มีข้อมูลสำหรับ Export"
         );
-
         return;
       }
-
-      /*
-       * -----------------------------------------------------
-       * สร้าง Worksheet
-       * -----------------------------------------------------
-       */
 
       const worksheet =
         XLSX.utils.json_to_sheet(
           rows
         );
-
-      /*
-       * -----------------------------------------------------
-       * ตั้งความกว้างคอลัมน์
-       * -----------------------------------------------------
-       */
 
       worksheet["!cols"] = [
         { wch: 28 },
@@ -699,12 +718,6 @@ export default function AdminPage() {
         { wch: 24 },
       ];
 
-      /*
-       * -----------------------------------------------------
-       * สร้าง Workbook
-       * -----------------------------------------------------
-       */
-
       const workbook =
         XLSX.utils.book_new();
 
@@ -714,14 +727,7 @@ export default function AdminPage() {
         "ผลการประเมิน"
       );
 
-      /*
-       * -----------------------------------------------------
-       * ชื่อไฟล์
-       * -----------------------------------------------------
-       */
-
-      const now =
-        new Date();
+      const now = new Date();
 
       const date =
         now.toLocaleDateString(
@@ -734,12 +740,6 @@ export default function AdminPage() {
 
       const fileName =
         `ผลการประเมินพนักงาน_${date}.xlsx`;
-
-      /*
-       * -----------------------------------------------------
-       * ดาวน์โหลด Excel จริง
-       * -----------------------------------------------------
-       */
 
       XLSX.writeFile(
         workbook,
@@ -870,8 +870,53 @@ export default function AdminPage() {
             icon="⏳"
             title="ยังไม่เริ่ม"
             value={stats.pending}
-            description="ยังไม่มีผู้ประเมิน"
+            description="ผู้ถูกประเมินที่ยังไม่มีผล"
           />
+        </section>
+
+        {/* =====================================================
+            FOLLOW-UP CARD
+        ===================================================== */}
+
+        <section className="mt-6 rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-3xl">
+                📋
+              </div>
+
+              <div>
+                <h3 className="text-lg font-black text-slate-900">
+                  ติดตามผู้ที่ยังไม่ได้เริ่มทำแบบประเมิน
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  ตรวจจากสิทธิ์การประเมินและข้อมูลจริงจาก Supabase
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-black text-red-600">
+                    🔴 ยังไม่เริ่ม{" "}
+                    {notStartedEvaluators.length} คน
+                  </span>
+
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                    อัปเดตทุก 2 วินาที
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowNotStarted(true)
+              }
+              className="rounded-2xl bg-amber-500 px-6 py-3.5 font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 active:scale-[0.99]"
+            >
+              🔎 ดูรายชื่อที่ยังไม่เริ่ม
+            </button>
+          </div>
         </section>
 
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1319,6 +1364,189 @@ export default function AdminPage() {
             </div>
           )}
       </div>
+
+      {/* =====================================================
+          NOT STARTED MODAL
+      ===================================================== */}
+
+      {showNotStarted && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setShowNotStarted(false)
+          }
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="border-b border-slate-200 bg-gradient-to-r from-amber-50 to-white px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-2xl">
+                    📋
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">
+                      คนที่ยังไม่ได้เริ่มทำแบบประเมิน
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      ผู้ที่มีสิทธิ์ประเมินและยังไม่มีผลประเมินในระบบ
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowNotStarted(
+                      false
+                    )
+                  }
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg font-bold text-slate-500 transition hover:bg-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <div className="rounded-2xl bg-red-50 px-4 py-3">
+                  <p className="text-xs font-semibold text-red-500">
+                    ยังไม่เริ่ม
+                  </p>
+
+                  <p className="mt-1 text-2xl font-black text-red-600">
+                    {
+                      notStartedEvaluators.length
+                    }{" "}
+                    คน
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold text-slate-500">
+                    สถานะ
+                  </p>
+
+                  <p className="mt-1 font-black text-slate-700">
+                    Supabase Live
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto p-5">
+              {notStartedEvaluators.length ===
+              0 ? (
+                <div className="py-12 text-center">
+                  <div className="text-6xl">
+                    🎉
+                  </div>
+
+                  <h4 className="mt-4 text-xl font-black text-emerald-600">
+                    ไม่มีคนค้างแล้ว
+                  </h4>
+
+                  <p className="mt-2 text-sm text-slate-500">
+                    ผู้ที่มีสิทธิ์ประเมินมีผลประเมินแล้ว
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notStartedEvaluators.map(
+                    (person, index) => (
+                      <div
+                        key={person.id}
+                        className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-amber-200 hover:bg-amber-50/30"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black text-slate-500">
+                          {index + 1}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900">
+                            {person.name}
+                          </p>
+
+                          <p className="mt-1 text-sm text-blue-600">
+                            {getRoleLabel(
+                              person.role
+                            )}
+                          </p>
+
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
+                            {person.roleName && (
+                              <span>
+                                {person.roleName}
+                              </span>
+                            )}
+
+                            {person.region && (
+                              <span>
+                                เขต{" "}
+                                {
+                                  person.region
+                                }
+                              </span>
+                            )}
+
+                            {person.branch && (
+                              <span>
+                                📍{" "}
+                                {
+                                  person.branch
+                                }
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <span className="shrink-0 rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600">
+                          ยังไม่เริ่ม
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={
+                    copyNotStartedList
+                  }
+                  disabled={
+                    notStartedEvaluators.length ===
+                    0
+                  }
+                  className="rounded-xl bg-blue-600 px-5 py-3 font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  📋 คัดลอกรายชื่อ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowNotStarted(
+                      false
+                    )
+                  }
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-bold text-slate-600 transition hover:bg-slate-100"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
