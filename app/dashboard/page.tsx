@@ -742,22 +742,18 @@ function TargetSection({
                 </div>
               )}
 
-              {/* Button */}
-              <button
-                onClick={() => {
-                  window.location.href =
-                    `/evaluate/${target.id}`;
-                }}
-                className={`mt-3 min-h-12 w-full rounded-xl px-4 py-3 text-sm font-bold text-white transition active:scale-[0.98] sm:mt-4 sm:text-base ${
-                  completed
-                    ? "bg-slate-700 hover:bg-slate-800"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-              >
-                {completed
-                  ? "✏️ แก้ไขการประเมิน"
-                  : "📝 ประเมินบุคคลนี้ →"}
-              </button>
+              {/* Button - แสดงเฉพาะคนที่ยังไม่ได้ประเมิน */}
+{!completed && (
+  <button
+    onClick={() => {
+      window.location.href =
+        `/evaluate/${target.id}`;
+    }}
+    className="mt-3 min-h-12 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 active:scale-[0.98] sm:mt-4 sm:text-base"
+  >
+    📝 ประเมินบุคคลนี้ →
+  </button>
+)}
             </div>
           );
         })}
