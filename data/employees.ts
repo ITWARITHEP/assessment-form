@@ -244,7 +244,7 @@ export const employees: Employee[] = [
     name: "นายสมพร สุโพธิ์",
     role: "branch_manager",
     roleName: "ผู้จัดการสาขาวารีเทพ มหาชนะชัย",
-    region: "อีสานใต้ 1/1",
+    region: "อีสานใต้ 1/2",
     branch: "วารีเทพ มหาชนะชัย",
   },
   {
