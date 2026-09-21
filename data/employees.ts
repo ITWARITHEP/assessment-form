@@ -43,7 +43,7 @@ export const employees: Employee[] = [
     id: "exec-004",
     name: "นางสาววารุณพร เชื้อวณิชย์",
     role: "executive",
-    roleName: "รองประธานกรรมการบริหาร\n ประธานขตภาคกลาง",
+    roleName: "รองประธานกรรมการบริหาร\n ประธานเขตภาคกลาง",
     responsibilityRegions: ["ภาคกลาง 1", "ภาคกลาง 2"],
   },
   {
