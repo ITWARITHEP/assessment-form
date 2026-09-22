@@ -168,10 +168,7 @@ export default function AdminPage() {
           ...hqTargets,
         ];
 
-        const {
-          data,
-          error,
-        } = await supabase
+        const { data, error } = await supabase
           .from("assessment_results")
           .select("*")
           .order("submitted_at", {
@@ -327,6 +324,17 @@ export default function AdminPage() {
   /*
    * =========================================================
    * PEOPLE WHO HAVE NEVER STARTED AN ASSESSMENT
+   *
+   * FIX:
+   * เดิมใช้ pendingPeople เป็นตัวตั้ง
+   * ทำให้คนที่ประเมินครบทุกคนแล้วหายจากรายการ
+   * และถูกเข้าใจผิดว่า "ยังไม่เริ่ม"
+   *
+   * ใหม่:
+   * 1. รวบรวมทุกคนที่มีสิทธิ์เป็นผู้ประเมิน
+   * 2. รวบรวมทุกคนที่มีผลประเมินแล้ว
+   * 3. ตัดคนที่มีผลแล้วออก
+   * 4. เหลือเฉพาะคนที่ยังไม่มีผลประเมินเลย
    * =========================================================
    */
 
@@ -339,10 +347,15 @@ export default function AdminPage() {
         >();
 
       /*
-       * รวบรวมทุกคนที่มีสิทธิ์เป็นผู้ประเมิน
+       * รวบรวม "ทุกคน" ที่มีสิทธิ์เป็นผู้ประเมิน
        */
       overviews.forEach((target) => {
-        target.pendingPeople.forEach(
+        const evaluators =
+          getEvaluationEvaluators(
+            target.id
+          );
+
+        evaluators.forEach(
           (person) => {
             if (
               !eligibleMap.has(
@@ -351,7 +364,17 @@ export default function AdminPage() {
             ) {
               eligibleMap.set(
                 person.id,
-                person
+                {
+                  id: person.id,
+                  name: person.name,
+                  role: person.role,
+                  roleName:
+                    person.roleName,
+                  region:
+                    person.region,
+                  branch:
+                    person.branch,
+                }
               );
             }
           }
@@ -359,22 +382,32 @@ export default function AdminPage() {
       });
 
       /*
-       * คนที่มีผลประเมินแล้วอย่างน้อย 1 รายการ
+       * รวบรวมคนที่มีผลประเมินแล้ว
+       * อย่างน้อย 1 รายการ
        */
       const startedIds =
-        new Set(
-          overviews
-            .flatMap(
-              (item) =>
-                item.results
-            )
-            .map(
-              (result) =>
-                result.evaluatorId
-            )
-            .filter(Boolean)
-        );
+        new Set<string>();
 
+      overviews.forEach(
+        (target) => {
+          target.results.forEach(
+            (result) => {
+              if (
+                result.evaluatorId
+              ) {
+                startedIds.add(
+                  result.evaluatorId
+                );
+              }
+            }
+          );
+        }
+      );
+
+      /*
+       * เหลือเฉพาะคนที่ยังไม่มี
+       * ผลประเมินเลยจริง ๆ
+       */
       return Array.from(
         eligibleMap.values()
       )
