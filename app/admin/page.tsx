@@ -116,17 +116,30 @@ function getRoleLabel(role: string) {
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
 
-  const [overviews, setOverviews] = useState<TargetOverview[]>([]);
+  const [overviews, setOverviews] =
+    useState<TargetOverview[]>([]);
+
+  /*
+   * ผลประเมินจาก Supabase ทั้งหมด
+   * ใช้สำหรับตรวจว่าใคร "เคยเริ่มทำ" แล้ว
+   * โดยไม่ผูกกับสิทธิ์ปัจจุบัน
+   */
+  const [allResults, setAllResults] =
+    useState<Result[]>([]);
 
   const [search, setSearch] = useState("");
 
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] =
+    useState<FilterType>("all");
 
-  const [loadingData, setLoadingData] = useState(true);
+  const [loadingData, setLoadingData] =
+    useState(true);
 
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] =
+    useState(false);
 
-  const [showNotStarted, setShowNotStarted] = useState(false);
+  const [showNotStarted, setShowNotStarted] =
+    useState(false);
 
   /*
    * =========================================================
@@ -141,34 +154,42 @@ export default function AdminPage() {
 
     const loadData = async () => {
       try {
-        const employeeTargets: Target[] = employees
-          .filter((employee) => employee.role !== "executive")
-          .map((employee) => ({
-            id: employee.id,
-            name: employee.name,
-            role: employee.role,
-            roleName: employee.roleName,
-            region: employee.region,
-            branch: employee.branch,
-          }));
+        const employeeTargets: Target[] =
+          employees
+            .filter(
+              (employee) =>
+                employee.role !== "executive"
+            )
+            .map((employee) => ({
+              id: employee.id,
+              name: employee.name,
+              role: employee.role,
+              roleName: employee.roleName,
+              region: employee.region,
+              branch: employee.branch,
+            }));
 
-        const hqTargets: Target[] = headquarters.map(
-          (name, index) => ({
-            id: `hq-${index + 1}`,
-            name,
-            role: "department",
-            roleName: "ฝ่ายสำนักงานใหญ่",
-            region: "",
-            branch: "",
-          })
-        );
+        const hqTargets: Target[] =
+          headquarters.map(
+            (name, index) => ({
+              id: `hq-${index + 1}`,
+              name,
+              role: "department",
+              roleName: "ฝ่ายสำนักงานใหญ่",
+              region: "",
+              branch: "",
+            })
+          );
 
         const allTargets = [
           ...employeeTargets,
           ...hqTargets,
         ];
 
-        const { data, error } = await supabase
+        const {
+          data,
+          error,
+        } = await supabase
           .from("assessment_results")
           .select("*")
           .order("submitted_at", {
@@ -183,33 +204,65 @@ export default function AdminPage() {
           return;
         }
 
-        const allResults: Result[] =
+        const loadedResults: Result[] =
           (data || []).map((row) => ({
-            evaluatorId: row.evaluator_id,
-            evaluatorName: row.evaluator_name,
-            evaluatorRole: row.evaluator_role,
-            targetId: row.target_id,
-            targetName: row.target_name,
-            targetRole: row.target_role,
-            formType: row.form_type,
-            answers: row.answers || {},
-            totalScore: Number(row.total_score || 0),
-            maxScore: Number(row.max_score || 0),
-            suggestion: row.suggestion || "",
-            submittedAt: row.submitted_at,
+            evaluatorId:
+              row.evaluator_id,
+            evaluatorName:
+              row.evaluator_name,
+            evaluatorRole:
+              row.evaluator_role,
+            targetId:
+              row.target_id,
+            targetName:
+              row.target_name,
+            targetRole:
+              row.target_role,
+            formType:
+              row.form_type,
+            answers:
+              row.answers || {},
+            totalScore:
+              Number(
+                row.total_score || 0
+              ),
+            maxScore:
+              Number(
+                row.max_score || 0
+              ),
+            suggestion:
+              row.suggestion || "",
+            submittedAt:
+              row.submitted_at,
           }));
+
+        /*
+         * เก็บผลทั้งหมดจาก Supabase
+         */
+        if (alive) {
+          setAllResults(
+            loadedResults
+          );
+        }
 
         const resultData: TargetOverview[] =
           allTargets.map((target) => {
             const evaluators =
-              getEvaluationEvaluators(target.id);
-
-            const targetResults =
-              allResults.filter(
-                (result) =>
-                  result.targetId === target.id
+              getEvaluationEvaluators(
+                target.id
               );
 
+            const targetResults =
+              loadedResults.filter(
+                (result) =>
+                  result.targetId ===
+                  target.id
+              );
+
+            /*
+             * นับเฉพาะผลของผู้ที่มีสิทธิ์
+             * ประเมินเป้าหมายนี้
+             */
             const uniqueResults =
               evaluators
                 .map((evaluator) =>
@@ -236,7 +289,8 @@ export default function AdminPage() {
                   .filter(Boolean)
               );
 
-            const pendingPeople: PendingEvaluator[] =
+            const pendingPeople:
+              PendingEvaluator[] =
               evaluators
                 .filter(
                   (evaluator) =>
@@ -250,8 +304,10 @@ export default function AdminPage() {
                   role: evaluator.role,
                   roleName:
                     evaluator.roleName,
-                  region: evaluator.region,
-                  branch: evaluator.branch,
+                  region:
+                    evaluator.region,
+                  branch:
+                    evaluator.branch,
                 }));
 
             const totalEvaluators =
@@ -271,12 +327,15 @@ export default function AdminPage() {
                   0
                 ),
               pendingPeople,
-              results: uniqueResults,
+              results:
+                uniqueResults,
             };
           });
 
         if (alive) {
-          setOverviews(resultData);
+          setOverviews(
+            resultData
+          );
         }
       } catch (error) {
         console.error(
@@ -325,78 +384,53 @@ export default function AdminPage() {
    * =========================================================
    * PEOPLE WHO HAVE NEVER STARTED AN ASSESSMENT
    *
-   * FIX:
-   * เดิมใช้ pendingPeople เป็นตัวตั้ง
-   * ทำให้คนที่ประเมินครบทุกคนแล้วหายจากรายการ
-   * และถูกเข้าใจผิดว่า "ยังไม่เริ่ม"
+   * สำคัญ:
+   * ใช้ allResults จาก Supabase โดยตรง
    *
-   * ใหม่:
-   * 1. รวบรวมทุกคนที่มีสิทธิ์เป็นผู้ประเมิน
-   * 2. รวบรวมทุกคนที่มีผลประเมินแล้ว
-   * 3. ตัดคนที่มีผลแล้วออก
-   * 4. เหลือเฉพาะคนที่ยังไม่มีผลประเมินเลย
+   * เพราะถ้ามีการเปลี่ยนเขตหรือเปลี่ยนสิทธิ์ภายหลัง
+   * ผลประเมินเก่าก็ยังหมายความว่า "คนนี้เคยเริ่มแล้ว"
    * =========================================================
    */
 
   const notStartedEvaluators =
     useMemo(() => {
+      /*
+       * คนที่มีสิทธิ์เป็นผู้ประเมิน
+       * ตามสิทธิ์ปัจจุบัน
+       */
       const eligibleMap =
         new Map<
           string,
           PendingEvaluator
         >();
 
-      /*
-       * รวบรวม "ทุกคน" ที่มีสิทธิ์เป็นผู้ประเมิน
-       */
-      overviews.forEach((target) => {
-        const evaluators =
-          getEvaluationEvaluators(
-            target.id
-          );
-
-        evaluators.forEach(
-          (person) => {
-            if (
-              !eligibleMap.has(
-                person.id
-              )
-            ) {
-              eligibleMap.set(
-                person.id,
-                {
-                  id: person.id,
-                  name: person.name,
-                  role: person.role,
-                  roleName:
-                    person.roleName,
-                  region:
-                    person.region,
-                  branch:
-                    person.branch,
-                }
-              );
-            }
-          }
-        );
-      });
-
-      /*
-       * รวบรวมคนที่มีผลประเมินแล้ว
-       * อย่างน้อย 1 รายการ
-       */
-      const startedIds =
-        new Set<string>();
-
       overviews.forEach(
         (target) => {
-          target.results.forEach(
-            (result) => {
+          const evaluators =
+            getEvaluationEvaluators(
+              target.id
+            );
+
+          evaluators.forEach(
+            (person) => {
               if (
-                result.evaluatorId
+                !eligibleMap.has(
+                  person.id
+                )
               ) {
-                startedIds.add(
-                  result.evaluatorId
+                eligibleMap.set(
+                  person.id,
+                  {
+                    id: person.id,
+                    name: person.name,
+                    role: person.role,
+                    roleName:
+                      person.roleName,
+                    region:
+                      person.region,
+                    branch:
+                      person.branch,
+                  }
                 );
               }
             }
@@ -405,8 +439,28 @@ export default function AdminPage() {
       );
 
       /*
-       * เหลือเฉพาะคนที่ยังไม่มี
-       * ผลประเมินเลยจริง ๆ
+       * คนที่มีผลประเมินแล้ว
+       * จากข้อมูล Supabase ทั้งหมด
+       */
+      const startedIds =
+        new Set<string>();
+
+      allResults.forEach(
+        (result) => {
+          if (
+            result.evaluatorId
+          ) {
+            startedIds.add(
+              result.evaluatorId
+            );
+          }
+        }
+      );
+
+      /*
+       * เหลือเฉพาะคนที่
+       * 1. มีสิทธิ์ประเมินในปัจจุบัน
+       * 2. ไม่มีผลประเมินใน Supabase เลย
        */
       return Array.from(
         eligibleMap.values()
@@ -423,7 +477,10 @@ export default function AdminPage() {
             "th"
           )
         );
-    }, [overviews]);
+    }, [
+      overviews,
+      allResults,
+    ]);
 
   /*
    * =========================================================
@@ -460,7 +517,8 @@ export default function AdminPage() {
             item.totalEvaluators;
 
         const isPending =
-          item.completedEvaluators === 0;
+          item.completedEvaluators ===
+          0;
 
         const isProgress =
           item.completedEvaluators > 0 &&
@@ -469,16 +527,25 @@ export default function AdminPage() {
 
         let matchesFilter = true;
 
-        if (filter === "complete") {
-          matchesFilter = isComplete;
+        if (
+          filter === "complete"
+        ) {
+          matchesFilter =
+            isComplete;
         }
 
-        if (filter === "progress") {
-          matchesFilter = isProgress;
+        if (
+          filter === "progress"
+        ) {
+          matchesFilter =
+            isProgress;
         }
 
-        if (filter === "pending") {
-          matchesFilter = isPending;
+        if (
+          filter === "pending"
+        ) {
+          matchesFilter =
+            isPending;
         }
 
         return (
@@ -522,7 +589,8 @@ export default function AdminPage() {
     const pending =
       overviews.filter(
         (item) =>
-          item.completedEvaluators === 0
+          item.completedEvaluators ===
+          0
       ).length;
 
     const totalRequired =
@@ -557,30 +625,31 @@ export default function AdminPage() {
    * =========================================================
    */
 
-  const roleGroups = useMemo(() => {
-    return [
-      {
-        key: "director",
-        title: "ผู้อำนวยการฝ่าย",
-        icon: "🏢",
-      },
-      {
-        key: "area_manager",
-        title: "ผู้จัดการเขต",
-        icon: "🌎",
-      },
-      {
-        key: "branch_manager",
-        title: "ผู้จัดการสาขา",
-        icon: "🏪",
-      },
-      {
-        key: "department",
-        title: "ฝ่ายสำนักงานใหญ่",
-        icon: "🏛️",
-      },
-    ];
-  }, []);
+  const roleGroups =
+    useMemo(() => {
+      return [
+        {
+          key: "director",
+          title: "ผู้อำนวยการฝ่าย",
+          icon: "🏢",
+        },
+        {
+          key: "area_manager",
+          title: "ผู้จัดการเขต",
+          icon: "🌎",
+        },
+        {
+          key: "branch_manager",
+          title: "ผู้จัดการสาขา",
+          icon: "🏪",
+        },
+        {
+          key: "department",
+          title: "ฝ่ายสำนักงานใหญ่",
+          icon: "🏛️",
+        },
+      ];
+    }, []);
 
   /*
    * =========================================================
@@ -615,26 +684,25 @@ export default function AdminPage() {
         return;
       }
 
-      const text =
-        [
-          "รายชื่อผู้ที่ยังไม่ได้เริ่มทำแบบประเมิน",
-          `จำนวน ${notStartedEvaluators.length} คน`,
-          "",
-          ...notStartedEvaluators.map(
-            (person, index) =>
-              `${index + 1}. ${person.name} | ${getRoleLabel(
-                person.role
-              )} | ${person.roleName}${
-                person.region
-                  ? ` | เขต ${person.region}`
-                  : ""
-              }${
-                person.branch
-                  ? ` | ${person.branch}`
-                  : ""
-              }`
-          ),
-        ].join("\n");
+      const text = [
+        "รายชื่อผู้ที่ยังไม่ได้เริ่มทำแบบประเมิน",
+        `จำนวน ${notStartedEvaluators.length} คน`,
+        "",
+        ...notStartedEvaluators.map(
+          (person, index) =>
+            `${index + 1}. ${person.name} | ${getRoleLabel(
+              person.role
+            )} | ${person.roleName}${
+              person.region
+                ? ` | เขต ${person.region}`
+                : ""
+            }${
+              person.branch
+                ? ` | ${person.branch}`
+                : ""
+            }`
+        ),
+      ].join("\n");
 
       try {
         await navigator.clipboard.writeText(
@@ -675,13 +743,16 @@ export default function AdminPage() {
                   ),
 
                 "ตำแหน่ง":
-                  item.roleName || "",
+                  item.roleName ||
+                  "",
 
                 "เขต":
-                  item.region || "",
+                  item.region ||
+                  "",
 
                 "สาขา":
-                  item.branch || "",
+                  item.branch ||
+                  "",
 
                 "ผู้ประเมิน":
                   result.evaluatorName ||
@@ -760,7 +831,8 @@ export default function AdminPage() {
         "ผลการประเมิน"
       );
 
-      const now = new Date();
+      const now =
+        new Date();
 
       const date =
         now.toLocaleDateString(
@@ -930,7 +1002,10 @@ export default function AdminPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-black text-red-600">
                     🔴 ยังไม่เริ่ม{" "}
-                    {notStartedEvaluators.length} คน
+                    {
+                      notStartedEvaluators.length
+                    }{" "}
+                    คน
                   </span>
 
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
@@ -943,7 +1018,9 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={() =>
-                setShowNotStarted(true)
+                setShowNotStarted(
+                  true
+                )
               }
               className="rounded-2xl bg-amber-500 px-6 py-3.5 font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 active:scale-[0.99]"
             >
@@ -962,11 +1039,15 @@ export default function AdminPage() {
               <p className="mt-1 text-sm text-slate-500">
                 ประเมินแล้ว{" "}
                 <span className="font-bold text-blue-600">
-                  {stats.totalCompleted}
+                  {
+                    stats.totalCompleted
+                  }
                 </span>{" "}
                 จาก{" "}
                 <span className="font-bold">
-                  {stats.totalRequired}
+                  {
+                    stats.totalRequired
+                  }
                 </span>{" "}
                 รายการประเมิน
               </p>
@@ -1018,12 +1099,15 @@ export default function AdminPage() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={exportToExcel}
+                onClick={
+                  exportToExcel
+                }
                 disabled={
                   exporting ||
                   overviews.every(
                     (item) =>
-                      item.results.length ===
+                      item.results
+                        .length ===
                       0
                   )
                 }
@@ -1047,7 +1131,9 @@ export default function AdminPage() {
 
               <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white p-1">
                 <FilterButton
-                  active={filter === "all"}
+                  active={
+                    filter === "all"
+                  }
                   onClick={() =>
                     setFilter("all")
                   }
@@ -1057,10 +1143,13 @@ export default function AdminPage() {
 
                 <FilterButton
                   active={
-                    filter === "complete"
+                    filter ===
+                    "complete"
                   }
                   onClick={() =>
-                    setFilter("complete")
+                    setFilter(
+                      "complete"
+                    )
                   }
                 >
                   ครบ
@@ -1068,10 +1157,13 @@ export default function AdminPage() {
 
                 <FilterButton
                   active={
-                    filter === "progress"
+                    filter ===
+                    "progress"
                   }
                   onClick={() =>
-                    setFilter("progress")
+                    setFilter(
+                      "progress"
+                    )
                   }
                 >
                   กำลังทำ
@@ -1079,10 +1171,13 @@ export default function AdminPage() {
 
                 <FilterButton
                   active={
-                    filter === "pending"
+                    filter ===
+                    "pending"
                   }
                   onClick={() =>
-                    setFilter("pending")
+                    setFilter(
+                      "pending"
+                    )
                   }
                 >
                   รอ
@@ -1115,12 +1210,19 @@ export default function AdminPage() {
                   <div className="mb-4 flex items-end justify-between">
                     <div>
                       <h3 className="text-xl font-bold text-slate-900">
-                        {group.icon}{" "}
-                        {group.title}
+                        {
+                          group.icon
+                        }{" "}
+                        {
+                          group.title
+                        }
                       </h3>
 
                       <p className="mt-1 text-sm text-slate-500">
-                        {items.length} รายการ
+                        {
+                          items.length
+                        }{" "}
+                        รายการ
                       </p>
                     </div>
                   </div>
@@ -1229,7 +1331,8 @@ export default function AdminPage() {
                                   /{" "}
                                   {
                                     item.totalEvaluators
-                                  } คน
+                                  }{" "}
+                                  คน
                                 </span>
                               </div>
 
@@ -1264,7 +1367,10 @@ export default function AdminPage() {
                                 </span>
 
                                 <span className="text-xs text-slate-400">
-                                  {percent}%
+                                  {
+                                    percent
+                                  }
+                                  %
                                 </span>
                               </div>
                             </div>
@@ -1309,11 +1415,15 @@ export default function AdminPage() {
                               👁️ ดูผลการประเมิน
                             </button>
 
-                            {item.results.length >
+                            {item.results
+                              .length >
                               0 && (
                               <div className="mt-4 space-y-2">
                                 {item.results
-                                  .slice(0, 3)
+                                  .slice(
+                                    0,
+                                    3
+                                  )
                                   .map(
                                     (
                                       result
@@ -1370,7 +1480,8 @@ export default function AdminPage() {
         </div>
 
         {loadingData &&
-          overviews.length === 0 && (
+          overviews.length ===
+            0 && (
             <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-10 text-center">
               <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
@@ -1381,7 +1492,8 @@ export default function AdminPage() {
           )}
 
         {!loadingData &&
-          filtered.length === 0 && (
+          filtered.length ===
+            0 && (
             <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-12 text-center">
               <div className="text-5xl">
                 🔎
@@ -1406,7 +1518,9 @@ export default function AdminPage() {
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
           onClick={() =>
-            setShowNotStarted(false)
+            setShowNotStarted(
+              false
+            )
           }
         >
           <div
@@ -1491,18 +1605,28 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-3">
                   {notStartedEvaluators.map(
-                    (person, index) => (
+                    (
+                      person,
+                      index
+                    ) => (
                       <div
-                        key={person.id}
+                        key={
+                          person.id
+                        }
                         className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-amber-200 hover:bg-amber-50/30"
                       >
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black text-slate-500">
-                          {index + 1}
+                          {
+                            index +
+                            1
+                          }
                         </div>
 
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-slate-900">
-                            {person.name}
+                            {
+                              person.name
+                            }
                           </p>
 
                           <p className="mt-1 text-sm text-blue-600">
@@ -1514,7 +1638,9 @@ export default function AdminPage() {
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
                             {person.roleName && (
                               <span>
-                                {person.roleName}
+                                {
+                                  person.roleName
+                                }
                               </span>
                             )}
 
