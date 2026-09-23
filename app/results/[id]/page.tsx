@@ -406,65 +406,206 @@ export default function ResultsPage({
             (data as SupabaseAssessmentRow[]) || [];
         }
 
-        const evaluatorResults: EvaluatorResult[] =
-          evaluators.map((evaluator) => {
-            const supabaseResult =
-              supabaseRows.find(
-                (row) =>
-                  row.evaluator_id === evaluator.id &&
-                  row.target_id === id
+        /*
+         * =====================================================
+         * รวมผู้ประเมินจาก 2 แหล่ง
+         *
+         * 1. สิทธิ์ปัจจุบัน
+         * 2. ผู้ที่มีผลจริงอยู่ใน Supabase
+         *
+         * เพื่อไม่ให้ผลเก่าหาย
+         * =====================================================
+         */
+
+const evaluatorResultsMap =
+          new Map<
+            string,
+            EvaluatorResult
+          >();
+
+        /*
+         * =====================================================
+         * 1. ใส่ผู้มีสิทธิ์ปัจจุบันก่อน
+         * =====================================================
+         */
+        evaluators.forEach(
+          (evaluator) => {
+            const row =
+              (data || []).find(
+                (item) =>
+                  item.evaluator_id ===
+                  evaluator.id
               );
 
-            if (!supabaseResult) {
-              return {
-                id: evaluator.id,
-                name: evaluator.name,
-                roleName: evaluator.roleName,
-                result: null,
-              };
+            if (!row) {
+              evaluatorResultsMap.set(
+                evaluator.id,
+                {
+                  id: evaluator.id,
+                  name: evaluator.name,
+                  roleName:
+                    evaluator.roleName,
+                  result: null,
+                }
+              );
+
+              return;
             }
 
-            const result: AssessmentResult = {
+            const result:
+              AssessmentResult = {
               evaluatorId:
-                supabaseResult.evaluator_id,
+                row.evaluator_id,
+
               evaluatorName:
-                supabaseResult.evaluator_name,
+                row.evaluator_name,
+
               evaluatorRole:
-                supabaseResult.evaluator_role,
+                row.evaluator_role,
+
               targetId:
-                supabaseResult.target_id,
+                row.target_id,
+
               targetName:
-                supabaseResult.target_name,
+                row.target_name,
+
               targetRole:
-                supabaseResult.target_role,
+                row.target_role,
+
               formType:
-                supabaseResult.form_type,
+                row.form_type,
+
               answers:
-                supabaseResult.answers || {},
+                row.answers || {},
+
               totalScore:
                 Number(
-                  supabaseResult.total_score
-                ) || 0,
+                  row.total_score || 0
+                ),
+
               maxScore:
                 Number(
-                  supabaseResult.max_score
-                ) || 0,
+                  row.max_score || 0
+                ),
+
               suggestion:
-                supabaseResult.suggestion || "",
+                row.suggestion || "",
+
               submittedAt:
-                supabaseResult.submitted_at ||
-                supabaseResult.created_at,
+                row.submitted_at,
             };
 
-            return {
-              id: evaluator.id,
-              name: evaluator.name,
-              roleName: evaluator.roleName,
-              result,
-            };
-          });
+            evaluatorResultsMap.set(
+              evaluator.id,
+              {
+                id: evaluator.id,
+                name: evaluator.name,
+                roleName:
+                  evaluator.roleName,
+                result,
+              }
+            );
+          }
+        );
 
-        setResults(evaluatorResults);
+        /*
+         * =====================================================
+         * 2. เพิ่มผลที่มีจริงใน Supabase
+         *
+         * สำคัญ:
+         * แม้ผู้ประเมินคนนั้นจะไม่อยู่ใน
+         * permissions ปัจจุบันแล้ว
+         * ผลเก่าก็ยังต้องแสดง
+         * =====================================================
+         */
+        (data || []).forEach(
+          (row) => {
+            if (
+              evaluatorResultsMap.has(
+                row.evaluator_id
+              )
+            ) {
+              return;
+            }
+
+            const employee =
+              employees.find(
+                (item) =>
+                  item.id ===
+                  row.evaluator_id
+              );
+
+            const result:
+              AssessmentResult = {
+              evaluatorId:
+                row.evaluator_id,
+
+              evaluatorName:
+                row.evaluator_name,
+
+              evaluatorRole:
+                row.evaluator_role,
+
+              targetId:
+                row.target_id,
+
+              targetName:
+                row.target_name,
+
+              targetRole:
+                row.target_role,
+
+              formType:
+                row.form_type,
+
+              answers:
+                row.answers || {},
+
+              totalScore:
+                Number(
+                  row.total_score || 0
+                ),
+
+              maxScore:
+                Number(
+                  row.max_score || 0
+                ),
+
+              suggestion:
+                row.suggestion || "",
+
+              submittedAt:
+                row.submitted_at,
+            };
+
+            evaluatorResultsMap.set(
+              row.evaluator_id,
+              {
+                id:
+                  row.evaluator_id,
+
+                name:
+                  employee?.name ||
+                  row.evaluator_name,
+
+                roleName:
+                  employee?.roleName ||
+                  row.evaluator_role,
+
+                result,
+              }
+            );
+          }
+        );
+
+        const evaluatorResults =
+          Array.from(
+            evaluatorResultsMap.values()
+          );
+
+        setResults(
+          evaluatorResults
+        );
       } catch (error) {
         console.error(
           "ไม่สามารถโหลดผลการประเมิน:",
@@ -1113,3 +1254,4 @@ export default function ResultsPage({
     </main>
   );
 }
+
