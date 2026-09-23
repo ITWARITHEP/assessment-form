@@ -1,22 +1,10 @@
-﻿"use client";
+"use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as XLSX from "xlsx";
 
-import {
-  employees,
-  headquarters,
-} from "@/data/employees";
-
-import {
-  getEvaluationEvaluators,
-} from "@/lib/permissions";
-
+import { employees, headquarters } from "@/data/employees";
+import { getEvaluationEvaluators } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 
 type Result = {
@@ -85,14 +73,11 @@ function formatDate(date?: string) {
   if (!date) return "-";
 
   try {
-    return new Date(date).toLocaleDateString(
-      "th-TH",
-      {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }
-    );
+    return new Date(date).toLocaleDateString("th-TH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   } catch {
     return "-";
   }
@@ -102,16 +87,12 @@ function getRoleIcon(role: string) {
   switch (role) {
     case "director":
       return "🏢";
-
     case "area_manager":
       return "🌎";
-
     case "branch_manager":
       return "🏪";
-
     case "department":
       return "🏛️";
-
     default:
       return "👤";
   }
@@ -121,39 +102,32 @@ function getRoleLabel(role: string) {
   switch (role) {
     case "director":
       return "ผู้อำนวยการฝ่าย";
-
     case "area_manager":
       return "ผู้จัดการเขต";
-
     case "branch_manager":
       return "ผู้จัดการสาขา";
-
     case "department":
       return "ฝ่ายสำนักงานใหญ่";
-
     default:
       return role;
   }
 }
 
-function normalizeName(value: unknown) {
-  return String(value ?? "")
-    .replace(/\s+/g, "")
-    .trim();
-}
-
 export default function AdminPage() {
-  const [mounted, setMounted] =
-    useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const [overviews, setOverviews] =
     useState<TargetOverview[]>([]);
 
+  /*
+   * ผลประเมินจาก Supabase ทั้งหมด
+   * ใช้สำหรับตรวจว่าใคร "เคยเริ่มทำ" แล้ว
+   * โดยไม่ผูกกับสิทธิ์ปัจจุบัน
+   */
   const [allResults, setAllResults] =
     useState<Result[]>([]);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
 
   const [filter, setFilter] =
     useState<FilterType>("all");
@@ -169,26 +143,7 @@ export default function AdminPage() {
 
   /*
    * =========================================================
-   * LOAD ADMIN DATA
-   *
-   * หลักการใหม่:
-   *
-   * 1. currentEvaluators
-   *    = คนที่ "มีสิทธิ์ประเมินปัจจุบัน"
-   *
-   * 2. targetResults
-   *    = ผลจริงใน Supabase ของ target นั้น
-   *
-   * 3. completed
-   *    = จำนวน evaluator ที่มีผลจริงใน Supabase
-   *
-   * 4. pending
-   *    = คนที่มีสิทธิ์ปัจจุบัน แต่ยังไม่มีผลของ target นี้
-   *
-   * 5. total
-   *    = current evaluator + historical evaluator
-   *
-   * ดังนั้นผลเก่าจะไม่หาย แม้สิทธิ์ปัจจุบันเปลี่ยน
+   * LOAD RESULTS FROM SUPABASE
    * =========================================================
    */
 
@@ -199,12 +154,6 @@ export default function AdminPage() {
 
     const loadData = async () => {
       try {
-        /*
-         * =====================================================
-         * TARGETS
-         * =====================================================
-         */
-
         const employeeTargets: Target[] =
           employees
             .filter(
@@ -237,60 +186,23 @@ export default function AdminPage() {
           ...hqTargets,
         ];
 
-        /*
-         * =====================================================
-         * SUPABASE
-         * =====================================================
-         */
-
-        let data: any[] = [];
-let error: any = null;
-
-const PAGE_SIZE = 500;
-
-for (let from = 0; ; from += PAGE_SIZE) {
-  const to = from + PAGE_SIZE - 1;
-
-  const result = await supabase
-    .from("assessment_results")
-    .select("*")
-    .order("submitted_at", {
-      ascending: false,
-    })
-    .range(from, to);
-
-  if (result.error) {
-    error = result.error;
-    break;
-  }
-
-  const rows = result.data ?? [];
-
-  data.push(...rows);
-
-  if (rows.length < PAGE_SIZE) {
-    break;
-  }
-}
+        const {
+          data,
+          error,
+        } = await supabase
+          .from("assessment_results")
+          .select("*")
+          .order("submitted_at", {
+            ascending: false,
+          });
 
         if (error) {
           console.error(
-            "ADMIN SUPABASE LOAD ERROR:",
+            "❌ ADMIN SUPABASE LOAD ERROR:",
             error
           );
-
-          if (alive) {
-            setLoadingData(false);
-          }
-
           return;
         }
-
-        /*
-         * =====================================================
-         * NORMALIZE RESULTS
-         * =====================================================
-         */
 
         const loadedResults: Result[] =
           (data || []).map((row) => ({
@@ -300,40 +212,42 @@ for (let from = 0; ; from += PAGE_SIZE) {
               row.evaluator_name,
             evaluatorRole:
               row.evaluator_role,
-
             targetId:
               row.target_id,
             targetName:
               row.target_name,
             targetRole:
               row.target_role,
-
             formType:
               row.form_type,
-
             answers:
               row.answers || {},
-
             totalScore:
               Number(
                 row.total_score || 0
               ),
-
             maxScore:
               Number(
                 row.max_score || 0
               ),
-
             suggestion:
               row.suggestion || "",
-
             submittedAt:
               row.submitted_at,
-          }));
+          }));console.log(
+  "🔍 ADMIN RESULTS CHECK",
+  (data || []).filter((row) =>
+    [
+      "dir-002",
+      "dir-010",
+      "dir-006",
+      "branch-016",
+    ].includes(row.evaluator_id)
+  )
+);
 
         /*
-         * เก็บผลทั้งหมดไว้ใช้กับ
-         * "ยังไม่เริ่ม"
+         * เก็บผลทั้งหมดจาก Supabase
          */
         if (alive) {
           setAllResults(
@@ -341,68 +255,67 @@ for (let from = 0; ; from += PAGE_SIZE) {
           );
         }
 
-        /*
-         * =====================================================
-         * BUILD OVERVIEW
-         * =====================================================
-         */
-
-        const resultData: TargetOverview[] =
+                const resultData: TargetOverview[] =
           allTargets.map((target) => {
             /*
-             * -------------------------------------------------
-             * A. สิทธิ์ปัจจุบัน
-             * -------------------------------------------------
+             * =====================================================
+             * 1. สิทธิ์ปัจจุบัน
+             * =====================================================
+             *
+             * ใช้เพื่อดูว่า "ปัจจุบันใครควรประเมินเป้าหมายนี้"
+             *
+             * ห้ามใช้ตัวนี้กรองผลเก่าจาก Supabase
              */
             const currentEvaluators =
-              getEvaluationEvaluators(
-                target.id
-              );
+              getEvaluationEvaluators(target.id);
 
             /*
-             * -------------------------------------------------
-             * B. ผลจริงของ target นี้
+             * =====================================================
+             * 2. ผลจริงจาก SUPABASE
+             * =====================================================
              *
-             * ห้ามเอา currentEvaluators มากรองตรงนี้
+             * ผลที่มี evaluator_id + target_id
+             * ถือว่า "ทำแล้ว" เสมอ
              *
-             * เพราะผลเก่าต้องยังอยู่
-             * -------------------------------------------------
+             * ไม่สนว่าปัจจุบัน evaluator ยังมีสิทธิ์อยู่หรือไม่
              */
             const targetResults =
               loadedResults.filter(
                 (result) =>
-                  result.targetId ===
-                  target.id
+                  result.targetId === target.id
               );
 
             /*
-             * -------------------------------------------------
-             * C. กันผลซ้ำ
+             * =====================================================
+             * 3. กันข้อมูลซ้ำ
+             * =====================================================
              *
-             * evaluator 1 คน
-             * + target 1 คน
-             * = 1 ผล
-             * -------------------------------------------------
+             * 1 evaluator + 1 target
+             * ต้องนับเป็น 1 ผล
              */
             const resultMap =
               new Map<string, Result>();
 
-            for (const result of targetResults) {
-              if (!result.evaluatorId) {
-                continue;
-              }
+            targetResults.forEach(
+              (result) => {
+                if (
+                  !result.evaluatorId
+                ) {
+                  return;
+                }
 
-              if (
-                !resultMap.has(
-                  result.evaluatorId
-                )
-              ) {
-                resultMap.set(
-                  result.evaluatorId,
-                  result
-                );
+                if (
+                  !resultMap.has(
+                    result.evaluatorId
+                  )
+                ) {
+                  resultMap.set(
+                    result.evaluatorId,
+                    result
+                  );
+                }
               }
-            }
+            );
 
             const uniqueResults =
               Array.from(
@@ -410,32 +323,35 @@ for (let from = 0; ; from += PAGE_SIZE) {
               );
 
             /*
-             * -------------------------------------------------
-             * D. คนที่ทำแล้ว
-             * -------------------------------------------------
+             * =====================================================
+             * 4. คนที่ทำแล้ว
+             * =====================================================
              */
             const completedIds =
               new Set<string>();
 
-            for (const result of uniqueResults) {
-              if (result.evaluatorId) {
-                completedIds.add(
+            uniqueResults.forEach(
+              (result) => {
+                if (
                   result.evaluatorId
-                );
+                ) {
+                  completedIds.add(
+                    result.evaluatorId
+                  );
+                }
               }
-            }
+            );
 
             /*
-             * -------------------------------------------------
-             * E. คนที่ยังไม่ได้ทำ
+             * =====================================================
+             * 5. คนที่ยังไม่ได้ทำ
+             * =====================================================
              *
-             * เอาจาก "สิทธิ์ปัจจุบัน"
-             * เท่านั้น
-             *
-             * แล้วตัดคนที่มีผล target นี้ออก
-             * -------------------------------------------------
+             * ใช้เฉพาะ "สิทธิ์ปัจจุบัน"
+             * แล้วตัดคนที่มีผลใน Supabase ออก
              */
-            const pendingPeople: PendingEvaluator[] =
+            const pendingPeople:
+              PendingEvaluator[] =
               currentEvaluators
                 .filter(
                   (evaluator) =>
@@ -443,66 +359,73 @@ for (let from = 0; ; from += PAGE_SIZE) {
                       evaluator.id
                     )
                 )
-                .map((evaluator) => ({
-                  id: evaluator.id,
-                  name: evaluator.name,
-                  role: evaluator.role,
-                  roleName:
-                    evaluator.roleName,
-                  region:
-                    evaluator.region,
-                  branch:
-                    evaluator.branch,
-                }));
+                .map(
+                  (evaluator) => ({
+                    id: evaluator.id,
+                    name: evaluator.name,
+                    role: evaluator.role,
+                    roleName:
+                      evaluator.roleName,
+                    region:
+                      evaluator.region,
+                    branch:
+                      evaluator.branch,
+                  })
+                );
 
             /*
-             * -------------------------------------------------
-             * F. TOTAL
+             * =====================================================
+             * 6. จำนวนผู้ประเมินทั้งหมด
+             * =====================================================
              *
-             * รวม:
+             * ต้องรวม:
              *
-             * 1. ผู้มีสิทธิ์ปัจจุบัน
-             * 2. ผู้ที่เคยมีผลจริงใน Supabase
+             * A. คนที่มีสิทธิ์ปัจจุบัน
+             * B. คนที่เคยประเมินจริงใน Supabase
              *
-             * เพื่อรักษาประวัติ
-             * -------------------------------------------------
+             * เพื่อไม่ให้ผลเก่าหายเพราะสิทธิ์เปลี่ยน
              */
             const evaluatorIds =
               new Set<string>();
 
-            for (const evaluator of currentEvaluators) {
-              evaluatorIds.add(
-                evaluator.id
-              );
-            }
-
-            for (const result of uniqueResults) {
-              if (result.evaluatorId) {
+            currentEvaluators.forEach(
+              (evaluator) => {
                 evaluatorIds.add(
-                  result.evaluatorId
+                  evaluator.id
                 );
               }
-            }
+            );
+
+            uniqueResults.forEach(
+              (result) => {
+                if (
+                  result.evaluatorId
+                ) {
+                  evaluatorIds.add(
+                    result.evaluatorId
+                  );
+                }
+              }
+            );
 
             const totalEvaluators =
               evaluatorIds.size;
 
             /*
-             * -------------------------------------------------
-             * G. COMPLETED
-             *
-             * ใช้ผลจริงจาก Supabase
-             * -------------------------------------------------
+             * =====================================================
+             * 7. จำนวนที่ทำแล้ว
+             * =====================================================
              */
             const completedEvaluators =
-  targetResults.length;
+              uniqueResults.length;
 
             /*
-             * -------------------------------------------------
-             * H. PENDING
+             * =====================================================
+             * 8. จำนวนที่ยังไม่ได้ทำ
+             * =====================================================
              *
-             * เฉพาะคนที่มีสิทธิ์ปัจจุบัน
-             * -------------------------------------------------
+             * สำหรับการแสดงผลของผู้ถูกประเมิน
+             * ใช้จำนวน pending จริงจากสิทธิ์ปัจจุบัน
              */
             const pendingEvaluators =
               pendingPeople.length;
@@ -519,7 +442,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
               pendingPeople,
 
               results:
-  targetResults,
+                uniqueResults,
             };
           });
 
@@ -530,7 +453,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
         }
       } catch (error) {
         console.error(
-          "ADMIN LOAD ERROR:",
+          "🔥 ADMIN LOAD ERROR:",
           error
         );
       } finally {
@@ -542,9 +465,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
     loadData();
 
-    /*
-     * อัปเดตทุก 2 วินาที
-     */
     const interval =
       window.setInterval(
         loadData,
@@ -576,61 +496,90 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
   /*
    * =========================================================
-   * PEOPLE WHO HAVE NEVER STARTED
+   * PEOPLE WHO HAVE NEVER STARTED AN ASSESSMENT
    *
-   * ความหมาย:
-   * คนที่ "ปัจจุบันมีสิทธิ์ประเมิน"
-   * และ "ไม่มีผลประเมินของตัวเองใน Supabase เลย"
+   * สำคัญ:
+   * ใช้ allResults จาก Supabase โดยตรง
    *
-   * ไม่ได้เอา target ปัจจุบันมาตัดประวัติ
+   * เพราะถ้ามีการเปลี่ยนเขตหรือเปลี่ยนสิทธิ์ภายหลัง
+   * ผลประเมินเก่าก็ยังหมายความว่า "คนนี้เคยเริ่มแล้ว"
    * =========================================================
    */
 
-  const notStartedEvaluators =
+      const notStartedEvaluators =
     useMemo(() => {
+      /*
+       * =====================================================
+       * NORMALIZE NAME
+       *
+       * ป้องกันกรณีชื่อมีช่องว่างเกิน
+       * เช่น
+       *
+       * "นางเยาวภา พนมศร"
+       * "นางเยาวภา  พนมศร"
+       *
+       * ให้ถือว่าเป็นคนเดียวกัน
+       * =====================================================
+       */
+      const normalizeName = (
+        value: unknown
+      ) =>
+        String(value ?? "")
+          .replace(/\s+/g, "")
+          .trim();
+
+      /*
+       * =====================================================
+       * 1. คนที่มีสิทธิ์ประเมินในปัจจุบัน
+       * =====================================================
+       */
       const eligibleMap =
         new Map<
           string,
           PendingEvaluator
         >();
 
-      /*
-       * รวมผู้ประเมินที่มีสิทธิ์ทั้งหมด
-       */
       overviews.forEach((target) => {
         const evaluators =
           getEvaluationEvaluators(
             target.id
           );
 
-        evaluators.forEach(
-          (person) => {
-            if (
-              !eligibleMap.has(
-                person.id
-              )
-            ) {
-              eligibleMap.set(
-                person.id,
-                {
-                  id: person.id,
-                  name: person.name,
-                  role: person.role,
-                  roleName:
-                    person.roleName,
-                  region:
-                    person.region,
-                  branch:
-                    person.branch,
-                }
-              );
-            }
+        evaluators.forEach((person) => {
+          if (
+            !eligibleMap.has(
+              person.id
+            )
+          ) {
+            eligibleMap.set(
+              person.id,
+              {
+                id: person.id,
+                name: person.name,
+                role: person.role,
+                roleName:
+                  person.roleName,
+                region:
+                  person.region,
+                branch:
+                  person.branch,
+              }
+            );
           }
-        );
+        });
       });
 
       /*
-       * คนที่เคยมีผลในระบบ
+       * =====================================================
+       * 2. สร้างชุดคนที่ "เคยทำแล้ว"
+       *
+       * สำคัญ:
+       *
+       * ใช้ทั้ง evaluator_id และ evaluator_name
+       *
+       * เพราะผลเก่าบางรายการอาจมี ID เดิม
+       * แต่ชื่อยังเป็นคนเดิม
+       * =====================================================
        */
       const startedIds =
         new Set<string>();
@@ -639,50 +588,79 @@ for (let from = 0; ; from += PAGE_SIZE) {
         new Set<string>();
 
       allResults.forEach((result) => {
-        const id =
+        /*
+         * ID
+         */
+        const evaluatorId =
           String(
             result.evaluatorId ??
               ""
           ).trim();
 
-        if (id) {
-          startedIds.add(id);
+        if (evaluatorId) {
+          startedIds.add(
+            evaluatorId
+          );
         }
 
-        const name =
+        /*
+         * ชื่อ
+         */
+        const evaluatorName =
           normalizeName(
             result.evaluatorName
           );
 
-        if (name) {
-          startedNames.add(name);
+        if (evaluatorName) {
+          startedNames.add(
+            evaluatorName
+          );
         }
       });
 
       /*
-       * เอาเฉพาะคนที่ไม่มีผลจริงเลย
+       * =====================================================
+       * 3. หา "ยังไม่เริ่มจริง"
+       *
+       * คนจะถูกแสดงเป็นยังไม่เริ่ม
+       * ก็ต่อเมื่อ:
+       *
+       * - ID ไม่มีใน Supabase
+       * และ
+       * - ชื่อไม่มีใน Supabase
+       *
+       * ถ้าอย่างใดอย่างหนึ่งตรง = ทำแล้ว
+       * =====================================================
        */
       return Array.from(
         eligibleMap.values()
       )
         .filter((person) => {
-          const hasId =
-            startedIds.has(
-              String(
-                person.id
-              ).trim()
+          const personId =
+            String(
+              person.id
+            ).trim();
+
+          const personName =
+            normalizeName(
+              person.name
             );
 
-          const hasName =
+          const hasResultById =
+            personId &&
+            startedIds.has(
+              personId
+            );
+
+          const hasResultByName =
+            personName &&
             startedNames.has(
-              normalizeName(
-                person.name
-              )
+              personName
             );
 
           return (
-            !hasId &&
-            !hasName
+            !hasResultById &&
+            !hasResultByName
           );
         })
         .sort((a, b) =>
@@ -695,87 +673,83 @@ for (let from = 0; ; from += PAGE_SIZE) {
       overviews,
       allResults,
     ]);
-
   /*
    * =========================================================
    * FILTER
    * =========================================================
    */
 
-  const filtered =
-    useMemo(() => {
-      const keyword =
-        search
-          .trim()
-          .toLowerCase();
+  const filtered = useMemo(() => {
+    const keyword =
+      search
+        .trim()
+        .toLowerCase();
 
-      return overviews.filter(
-        (item) => {
-          const matchesSearch =
-            !keyword ||
-            item.name
-              .toLowerCase()
-              .includes(keyword) ||
-            item.roleName
-              .toLowerCase()
-              .includes(keyword) ||
-            item.region
-              ?.toLowerCase()
-              .includes(keyword) ||
-            item.branch
-              ?.toLowerCase()
-              .includes(keyword);
+    return overviews.filter(
+      (item) => {
+        const matchesSearch =
+          !keyword ||
+          item.name
+            .toLowerCase()
+            .includes(keyword) ||
+          item.roleName
+            .toLowerCase()
+            .includes(keyword) ||
+          item.region
+            ?.toLowerCase()
+            .includes(keyword) ||
+          item.branch
+            ?.toLowerCase()
+            .includes(keyword);
 
-          const isComplete =
-            item.totalEvaluators >
-              0 &&
-            item.completedEvaluators ===
-              item.totalEvaluators;
+        const isComplete =
+          item.totalEvaluators > 0 &&
+          item.completedEvaluators ===
+            item.totalEvaluators;
 
-          const isProgress =
-            item.completedEvaluators >
-              0 &&
-            item.completedEvaluators <
-              item.totalEvaluators;
+        const isPending =
+          item.completedEvaluators ===
+          0;
 
-          const isPending =
-            item.completedEvaluators ===
-            0;
+        const isProgress =
+          item.completedEvaluators > 0 &&
+          item.completedEvaluators <
+            item.totalEvaluators;
 
-          let matchesFilter = true;
+        let matchesFilter = true;
 
-          if (
-            filter === "complete"
-          ) {
-            matchesFilter =
-              isComplete;
-          }
-
-          if (
-            filter === "progress"
-          ) {
-            matchesFilter =
-              isProgress;
-          }
-
-          if (
-            filter === "pending"
-          ) {
-            matchesFilter =
-              isPending;
-          }
-
-          return (
-            matchesSearch &&
-            matchesFilter
-          );
+        if (
+          filter === "complete"
+        ) {
+          matchesFilter =
+            isComplete;
         }
-      );
-    }, [
-      overviews,
-      search,
-      filter,
-    ]);
+
+        if (
+          filter === "progress"
+        ) {
+          matchesFilter =
+            isProgress;
+        }
+
+        if (
+          filter === "pending"
+        ) {
+          matchesFilter =
+            isPending;
+        }
+
+        return (
+          matchesSearch &&
+          matchesFilter
+        );
+      }
+    );
+  }, [
+    overviews,
+    search,
+    filter,
+  ]);
 
   /*
    * =========================================================
@@ -783,61 +757,58 @@ for (let from = 0; ; from += PAGE_SIZE) {
    * =========================================================
    */
 
-  const stats =
-    useMemo(() => {
-      const total =
-        overviews.length;
+  const stats = useMemo(() => {
+    const total =
+      overviews.length;
 
-      const complete =
-        overviews.filter(
-          (item) =>
-            item.totalEvaluators >
-              0 &&
-            item.completedEvaluators ===
-              item.totalEvaluators
-        ).length;
+    const complete =
+      overviews.filter(
+        (item) =>
+          item.totalEvaluators > 0 &&
+          item.completedEvaluators ===
+            item.totalEvaluators
+      ).length;
 
-      const progress =
-        overviews.filter(
-          (item) =>
-            item.completedEvaluators >
-              0 &&
-            item.completedEvaluators <
-              item.totalEvaluators
-        ).length;
+    const progress =
+      overviews.filter(
+        (item) =>
+          item.completedEvaluators > 0 &&
+          item.completedEvaluators <
+            item.totalEvaluators
+      ).length;
 
-      const pending =
-        overviews.filter(
-          (item) =>
-            item.completedEvaluators ===
-            0
-        ).length;
-
-      const totalRequired =
-        overviews.reduce(
-          (sum, item) =>
-            sum +
-            item.totalEvaluators,
+    const pending =
+      overviews.filter(
+        (item) =>
+          item.completedEvaluators ===
           0
-        );
+      ).length;
 
-      const totalCompleted =
-        overviews.reduce(
-          (sum, item) =>
-            sum +
-            item.completedEvaluators,
-          0
-        );
+    const totalRequired =
+      overviews.reduce(
+        (sum, item) =>
+          sum +
+          item.totalEvaluators,
+        0
+      );
 
-      return {
-        total,
-        complete,
-        progress,
-        pending,
-        totalRequired,
-        totalCompleted,
-      };
-    }, [overviews]);
+    const totalCompleted =
+      overviews.reduce(
+        (sum, item) =>
+          sum +
+          item.completedEvaluators,
+        0
+      );
+
+    return {
+      total,
+      complete,
+      progress,
+      pending,
+      totalRequired,
+      totalCompleted,
+    };
+  }, [overviews]);
 
   /*
    * =========================================================
@@ -845,28 +816,31 @@ for (let from = 0; ; from += PAGE_SIZE) {
    * =========================================================
    */
 
-  const roleGroups = [
-    {
-      key: "director",
-      title: "ผู้อำนวยการฝ่าย",
-      icon: "🏢",
-    },
-    {
-      key: "area_manager",
-      title: "ผู้จัดการเขต",
-      icon: "🌎",
-    },
-    {
-      key: "branch_manager",
-      title: "ผู้จัดการสาขา",
-      icon: "🏪",
-    },
-    {
-      key: "department",
-      title: "ฝ่ายสำนักงานใหญ่",
-      icon: "🏛️",
-    },
-  ];
+  const roleGroups =
+    useMemo(() => {
+      return [
+        {
+          key: "director",
+          title: "ผู้อำนวยการฝ่าย",
+          icon: "🏢",
+        },
+        {
+          key: "area_manager",
+          title: "ผู้จัดการเขต",
+          icon: "🌎",
+        },
+        {
+          key: "branch_manager",
+          title: "ผู้จัดการสาขา",
+          icon: "🏪",
+        },
+        {
+          key: "department",
+          title: "ฝ่ายสำนักงานใหญ่",
+          icon: "🏛️",
+        },
+      ];
+    }, []);
 
   /*
    * =========================================================
@@ -888,7 +862,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
   /*
    * =========================================================
-   * COPY NOT STARTED
+   * COPY NOT STARTED LIST
    * =========================================================
    */
 
@@ -1048,8 +1022,11 @@ for (let from = 0; ; from += PAGE_SIZE) {
         "ผลการประเมิน"
       );
 
+      const now =
+        new Date();
+
       const date =
-        new Date().toLocaleDateString(
+        now.toLocaleDateString(
           "sv-SE",
           {
             timeZone:
@@ -1057,13 +1034,16 @@ for (let from = 0; ; from += PAGE_SIZE) {
           }
         );
 
+      const fileName =
+        `ผลการประเมินพนักงาน_${date}.xlsx`;
+
       XLSX.writeFile(
         workbook,
-        `ผลการประเมินพนักงาน_${date}.xlsx`
+        fileName
       );
     } catch (error) {
       console.error(
-        "EXPORT EXCEL ERROR:",
+        "❌ EXPORT EXCEL ERROR:",
         error
       );
 
@@ -1160,10 +1140,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
           </p>
         </section>
 
-        {/* =====================================================
-            STATS
-        ===================================================== */}
-
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             icon="👥"
@@ -1195,7 +1171,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
         </section>
 
         {/* =====================================================
-            NOT STARTED
+            FOLLOW-UP CARD
         ===================================================== */}
 
         <section className="mt-6 rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-6 shadow-sm">
@@ -1211,13 +1187,16 @@ for (let from = 0; ; from += PAGE_SIZE) {
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  แสดงเฉพาะผู้ที่มีสิทธิ์ประเมินในปัจจุบันและไม่มีผลประเมินใน Supabase
+                  ตรวจจากสิทธิ์การประเมินและข้อมูลจริงจาก Supabase
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-black text-red-600">
                     🔴 ยังไม่เริ่ม{" "}
-                    {notStartedEvaluators.length} คน
+                    {
+                      notStartedEvaluators.length
+                    }{" "}
+                    คน
                   </span>
 
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
@@ -1230,18 +1209,16 @@ for (let from = 0; ; from += PAGE_SIZE) {
             <button
               type="button"
               onClick={() =>
-                setShowNotStarted(true)
+                setShowNotStarted(
+                  true
+                )
               }
-              className="rounded-2xl bg-amber-500 px-6 py-3.5 font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600"
+              className="rounded-2xl bg-amber-500 px-6 py-3.5 font-black text-white shadow-lg shadow-amber-100 transition hover:bg-amber-600 active:scale-[0.99]"
             >
               🔎 ดูรายชื่อที่ยังไม่เริ่ม
             </button>
           </div>
         </section>
-
-        {/* =====================================================
-            TOTAL PROGRESS
-        ===================================================== */}
 
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1253,11 +1230,15 @@ for (let from = 0; ; from += PAGE_SIZE) {
               <p className="mt-1 text-sm text-slate-500">
                 ประเมินแล้ว{" "}
                 <span className="font-bold text-blue-600">
-                  {stats.totalCompleted}
+                  {
+                    stats.totalCompleted
+                  }
                 </span>{" "}
                 จาก{" "}
                 <span className="font-bold">
-                  {stats.totalRequired}
+                  {
+                    stats.totalRequired
+                  }
                 </span>{" "}
                 รายการประเมิน
               </p>
@@ -1294,10 +1275,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
           </div>
         </section>
 
-        {/* =====================================================
-            SEARCH / FILTER
-        ===================================================== */}
-
         <section className="mt-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1313,16 +1290,19 @@ for (let from = 0; ; from += PAGE_SIZE) {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={exportToExcel}
+                onClick={
+                  exportToExcel
+                }
                 disabled={
                   exporting ||
                   overviews.every(
                     (item) =>
-                      item.results.length ===
+                      item.results
+                        .length ===
                       0
                   )
                 }
-                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 {exporting
                   ? "⏳ กำลัง Export..."
@@ -1354,10 +1334,13 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
                 <FilterButton
                   active={
-                    filter === "complete"
+                    filter ===
+                    "complete"
                   }
                   onClick={() =>
-                    setFilter("complete")
+                    setFilter(
+                      "complete"
+                    )
                   }
                 >
                   ครบ
@@ -1365,10 +1348,13 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
                 <FilterButton
                   active={
-                    filter === "progress"
+                    filter ===
+                    "progress"
                   }
                   onClick={() =>
-                    setFilter("progress")
+                    setFilter(
+                      "progress"
+                    )
                   }
                 >
                   กำลังทำ
@@ -1376,10 +1362,13 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
                 <FilterButton
                   active={
-                    filter === "pending"
+                    filter ===
+                    "pending"
                   }
                   onClick={() =>
-                    setFilter("pending")
+                    setFilter(
+                      "pending"
+                    )
                   }
                 >
                   รอ
@@ -1388,10 +1377,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
             </div>
           </div>
         </section>
-
-        {/* =====================================================
-            TARGET CARDS
-        ===================================================== */}
 
         <div className="mt-6 space-y-8">
           {roleGroups.map(
@@ -1413,15 +1398,24 @@ for (let from = 0; ; from += PAGE_SIZE) {
                 <section
                   key={group.key}
                 >
-                  <div className="mb-4">
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {group.icon}{" "}
-                      {group.title}
-                    </h3>
+                  <div className="mb-4 flex items-end justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900">
+                        {
+                          group.icon
+                        }{" "}
+                        {
+                          group.title
+                        }
+                      </h3>
 
-                    <p className="mt-1 text-sm text-slate-500">
-                      {items.length} รายการ
-                    </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {
+                          items.length
+                        }{" "}
+                        รายการ
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -1459,7 +1453,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
                                   : "border-blue-200"
                             }`}
                           >
-                            {/* PERSON */}
                             <div className="flex items-start gap-4">
                               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
                                 {getRoleIcon(
@@ -1469,7 +1462,9 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
                               <div className="min-w-0 flex-1">
                                 <h4 className="font-bold leading-6 text-slate-900">
-                                  {item.name}
+                                  {
+                                    item.name
+                                  }
                                 </h4>
 
                                 <p className="mt-1 text-sm text-blue-600">
@@ -1480,27 +1475,32 @@ for (let from = 0; ; from += PAGE_SIZE) {
 
                                 {item.roleName && (
                                   <p className="mt-1 text-sm text-slate-500">
-                                    {item.roleName}
+                                    {
+                                      item.roleName
+                                    }
                                   </p>
                                 )}
 
                                 {item.region && (
                                   <p className="mt-1 text-xs text-slate-400">
                                     เขต{" "}
-                                    {item.region}
+                                    {
+                                      item.region
+                                    }
                                   </p>
                                 )}
 
                                 {item.branch && (
                                   <p className="mt-1 text-xs text-slate-400">
                                     📍{" "}
-                                    {item.branch}
+                                    {
+                                      item.branch
+                                    }
                                   </p>
                                 )}
                               </div>
                             </div>
 
-                            {/* PROGRESS */}
                             <div className="mt-6">
                               <div className="flex items-center justify-between">
                                 <span className="text-sm font-semibold text-slate-600">
@@ -1535,10 +1535,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
                                       : "bg-blue-500"
                                   }`}
                                   style={{
-                                    width: `${Math.min(
-                                      percent,
-                                      100
-                                    )}%`,
+                                    width: `${percent}%`,
                                   }}
                                 />
                               </div>
@@ -1561,12 +1558,14 @@ for (let from = 0; ; from += PAGE_SIZE) {
                                 </span>
 
                                 <span className="text-xs text-slate-400">
-                                  {percent}%
+                                  {
+                                    percent
+                                  }
+                                  %
                                 </span>
                               </div>
                             </div>
 
-                            {/* COUNTS */}
                             <div className="mt-4 rounded-2xl bg-slate-50 p-3">
                               <div className="grid grid-cols-2 gap-3 text-center">
                                 <div>
@@ -1595,7 +1594,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
                               </div>
                             </div>
 
-                            {/* RESULTS */}
                             <button
                               type="button"
                               onClick={() =>
@@ -1603,7 +1601,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
                                   item.id
                                 )
                               }
-                              className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-700"
+                              className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white transition hover:bg-blue-700 active:scale-[0.99]"
                             >
                               👁️ ดูผลการประเมิน
                             </button>
@@ -1672,7 +1670,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
           )}
         </div>
 
-        {/* LOADING */}
         {loadingData &&
           overviews.length ===
             0 && (
@@ -1685,7 +1682,6 @@ for (let from = 0; ; from += PAGE_SIZE) {
             </div>
           )}
 
-        {/* EMPTY */}
         {!loadingData &&
           filtered.length ===
             0 && (
@@ -1713,7 +1709,9 @@ for (let from = 0; ; from += PAGE_SIZE) {
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
           onClick={() =>
-            setShowNotStarted(false)
+            setShowNotStarted(
+              false
+            )
           }
         >
           <div
@@ -1735,7 +1733,7 @@ for (let from = 0; ; from += PAGE_SIZE) {
                     </h3>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      ผู้ที่มีสิทธิ์ประเมินปัจจุบันและยังไม่มีผลในระบบ
+                      ผู้ที่มีสิทธิ์ประเมินและยังไม่มีผลประเมินในระบบ
                     </p>
                   </div>
                 </div>
@@ -1809,12 +1807,17 @@ for (let from = 0; ; from += PAGE_SIZE) {
                         className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-amber-200 hover:bg-amber-50/30"
                       >
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black text-slate-500">
-                          {index + 1}
+                          {
+                            index +
+                            1
+                          }
                         </div>
 
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-slate-900">
-                            {person.name}
+                            {
+                              person.name
+                            }
                           </p>
 
                           <p className="mt-1 text-sm text-blue-600">

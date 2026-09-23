@@ -240,14 +240,6 @@ export const employees: Employee[] = [
     branch: "วารีเทพ เขื่องใน",
   },
   {
-    id: "branch-003",
-    name: "นายสมพร สุโพธิ์",
-    role: "branch_manager",
-    roleName: "ผู้จัดการสาขาวารีเทพ มหาชนะชัย",
-    region: "อีสานใต้ 1/2",
-    branch: "วารีเทพ มหาชนะชัย",
-  },
-  {
     id: "branch-004",
     name: "นายธวัชชัย วันโท",
     role: "branch_manager",
@@ -273,6 +265,14 @@ export const employees: Employee[] = [
   },
 
   // อีสานใต้ 1/2
+  {
+    id: "branch-003",
+    name: "นายสมพร สุโพธิ์",
+    role: "branch_manager",
+    roleName: "ผู้จัดการสาขาวารีเทพ มหาชนะชัย",
+    region: "อีสานใต้ 1/2",
+    branch: "วารีเทพ มหาชนะชัย",
+  },
   {
     id: "branch-007",
     name: "นายจิรศักดิ์ แสนสะอาด",

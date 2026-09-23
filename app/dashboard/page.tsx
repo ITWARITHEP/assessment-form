@@ -29,12 +29,29 @@ export default function DashboardPage() {
    * =====================================================
    * โหลดว่าผู้ประเมินคนนี้ประเมินใครไปแล้ว
    *
-   * อ่านจาก Supabase เป็นหลัก
+   * หลักการ:
+   * 1. สิทธิ์ปัจจุบัน = evaluationTargets
+   * 2. ผลจริง = assessment_results
+   * 3. completed = ผลจริงที่อยู่ในสิทธิ์ปัจจุบันเท่านั้น
    * =====================================================
    */
   const loadCompletedResults = useCallback(
-    async (user: Employee, evaluationTargets: EvaluationTarget[]) => {
+    async (
+      user: Employee,
+      evaluationTargets: EvaluationTarget[]
+    ) => {
       setLoadingResults(true);
+
+      /*
+       * -------------------------------------------------
+       * รายชื่อ target ที่ผู้ประเมินมีสิทธิ์ปัจจุบัน
+       * -------------------------------------------------
+       */
+      const allowedTargetIds = new Set(
+        evaluationTargets.map(
+          (target) => target.id
+        )
+      );
 
       /*
        * -------------------------------------------------
@@ -47,13 +64,27 @@ export default function DashboardPage() {
         .eq("evaluator_id", user.id);
 
       if (!error && data) {
+        /*
+         * -------------------------------------------------
+         * สำคัญ:
+         *
+         * เอาเฉพาะผลที่ target ยังอยู่ใน
+         * สิทธิ์ปัจจุบันของผู้ประเมิน
+         * -------------------------------------------------
+         */
         const completedFromSupabase = data
           .map((row) => row.target_id)
-          .filter((id): id is string => Boolean(id));
+          .filter(
+            (id): id is string =>
+              Boolean(id) &&
+              allowedTargetIds.has(id)
+          );
 
         setCompletedIds(
           Array.from(
-            new Set(completedFromSupabase)
+            new Set(
+              completedFromSupabase
+            )
           )
         );
 
@@ -72,25 +103,30 @@ export default function DashboardPage() {
         error
       );
 
-      const completedFromLocal: string[] = [];
+      const completedFromLocal: string[] =
+        [];
 
-      evaluationTargets.forEach((target) => {
-        const key =
-          `assessment_result_${user.id}_${target.id}`;
+      evaluationTargets.forEach(
+        (target) => {
+          const key =
+            `assessment_result_${user.id}_${target.id}`;
 
-        const result =
-          localStorage.getItem(key);
+          const result =
+            localStorage.getItem(key);
 
-        if (result) {
-          completedFromLocal.push(
-            target.id
-          );
+          if (result) {
+            completedFromLocal.push(
+              target.id
+            );
+          }
         }
-      });
+      );
 
       setCompletedIds(
         Array.from(
-          new Set(completedFromLocal)
+          new Set(
+            completedFromLocal
+          )
         )
       );
 
@@ -131,13 +167,20 @@ export default function DashboardPage() {
 
     setEvaluator(user);
 
+    /*
+     * -------------------------------------------------
+     * โหลด target ตามสิทธิ์ปัจจุบัน
+     * -------------------------------------------------
+     */
     const evaluationTargets =
       getEvaluationTargets(user);
 
     setTargets(evaluationTargets);
 
     /*
+     * -------------------------------------------------
      * โหลดสถานะการประเมินจาก Supabase
+     * -------------------------------------------------
      */
     loadCompletedResults(
       user,
@@ -147,10 +190,7 @@ export default function DashboardPage() {
     /*
      * =================================================
      * เมื่อกลับเข้าหน้า Dashboard
-     * ให้โหลดใหม่อีกครั้ง
-     *
-     * รองรับกรณีประเมินเสร็จจากมือถือแล้ว
-     * กลับมาหน้า Dashboard
+     * ให้โหลดสถานะใหม่
      * =================================================
      */
     const handleFocus = () => {
@@ -165,17 +205,18 @@ export default function DashboardPage() {
       handleFocus
     );
 
-    const handleVisibilityChange = () => {
-      if (
-        document.visibilityState ===
-        "visible"
-      ) {
-        loadCompletedResults(
-          user,
-          evaluationTargets
-        );
-      }
-    };
+    const handleVisibilityChange =
+      () => {
+        if (
+          document.visibilityState ===
+          "visible"
+        ) {
+          loadCompletedResults(
+            user,
+            evaluationTargets
+          );
+        }
+      };
 
     document.addEventListener(
       "visibilitychange",
@@ -255,12 +296,14 @@ export default function DashboardPage() {
   const groupedTargets = {
     director: targets.filter(
       (target) =>
-        target.category === "director"
+        target.category ===
+        "director"
     ),
 
     area_manager: targets.filter(
       (target) =>
-        target.category === "area_manager"
+        target.category ===
+        "area_manager"
     ),
 
     branch_manager: targets.filter(
@@ -290,6 +333,11 @@ export default function DashboardPage() {
     0
   );
 
+  /*
+   * =====================================================
+   * Loading
+   * =====================================================
+   */
   if (!evaluator) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
@@ -334,7 +382,8 @@ export default function DashboardPage() {
                 "assessment_user"
               );
 
-              window.location.href = "/";
+              window.location.href =
+                "/";
             }}
             className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 active:scale-95 sm:px-4 sm:py-2.5 sm:text-sm"
           >
@@ -354,7 +403,6 @@ export default function DashboardPage() {
         <section className="mb-5 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white shadow-lg shadow-blue-100 sm:mb-8 sm:rounded-3xl sm:p-7">
           <div className="flex flex-col gap-4 sm:gap-5 md:flex-row md:items-center md:justify-between">
 
-            {/* User */}
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl backdrop-blur sm:h-20 sm:w-20 sm:rounded-3xl sm:text-4xl">
                 {getRoleIcon(
@@ -367,7 +415,6 @@ export default function DashboardPage() {
                   ผู้ประเมิน
                 </p>
 
-                {/* ชื่อบังคับให้อยู่บรรทัดเดียว */}
                 <h2 className="mt-0.5 w-full max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-[17px] font-bold leading-6 sm:mt-1 sm:max-w-[420px] sm:text-2xl sm:leading-7">
                   {evaluator.name}
                 </h2>
@@ -445,10 +492,8 @@ export default function DashboardPage() {
 
                 <p className="mt-1 text-xs text-slate-500 sm:text-sm">
                   ประเมินแล้ว{" "}
-                  {completedCount}{" "}
-                  จาก{" "}
-                  {targets.length}{" "}
-                  คน
+                  {completedCount} จาก{" "}
+                  {targets.length} คน
                 </p>
               </div>
 
@@ -743,17 +788,17 @@ function TargetSection({
               )}
 
               {/* Button - แสดงเฉพาะคนที่ยังไม่ได้ประเมิน */}
-{!completed && (
-  <button
-    onClick={() => {
-      window.location.href =
-        `/evaluate/${target.id}`;
-    }}
-    className="mt-3 min-h-12 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 active:scale-[0.98] sm:mt-4 sm:text-base"
-  >
-    📝 ประเมินบุคคลนี้ →
-  </button>
-)}
+              {!completed && (
+                <button
+                  onClick={() => {
+                    window.location.href =
+                      `/evaluate/${target.id}`;
+                  }}
+                  className="mt-3 min-h-12 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700 active:scale-[0.98] sm:mt-4 sm:text-base"
+                >
+                  📝 ประเมินบุคคลนี้ →
+                </button>
+              )}
             </div>
           );
         })}
